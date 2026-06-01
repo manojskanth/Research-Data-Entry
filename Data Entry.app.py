@@ -4,7 +4,6 @@ import json
 import re
 import io
 
-# Secure runtime package initialization checks
 try:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
@@ -41,40 +40,25 @@ DEPARTMENT_FOLDERS = {
 
 # --- 2. BACKEND API ENGINE ---
 def get_google_credentials():
-    """Builds explicit authenticated objects row-by-row to completely bypass PEM load errors."""
-    g_sec = st.secrets["gcp_service_account"]
-    
-    # Cleans and formats the raw private key text structure safely at runtime
-    raw_key = g_sec["private_key"].replace("\\n", "\n").strip()
-    if not raw_key.startswith("-----BEGIN PRIVATE KEY-----"):
-        raw_key = f"-----BEGIN PRIVATE KEY-----\n{raw_key}"
-    if not raw_key.endswith("-----END PRIVATE KEY-----"):
-        raw_key = f"{raw_key}\n-----END PRIVATE KEY-----"
-
-    info_matrix = {
-        "type": "service_account",
-        "project_id": g_sec["project_id"],
-        "private_key_id": g_sec["private_key_id"],
-        "private_key": raw_key,
-        "client_email": g_sec["client_email"],
-        "client_id": g_sec["client_id"],
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": g_sec["client_x509_cert_url"]
-    }
-    
-    return service_account.Credentials.from_service_account_info(
-        info_matrix,
-        scopes=[
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive.file",
-            "https://www.googleapis.com/auth/drive"
-        ]
-    )
+    """Parses credentials directly from a single safe string to completely bypass PEM load errors."""
+    try:
+        # Load the raw, unaltered JSON string directly from secrets memory
+        raw_json_str = st.secrets["GCP_CREDENTIALS_JSON"]
+        info_matrix = json.loads(raw_json_str)
+        
+        return service_account.Credentials.from_service_account_info(
+            info_matrix,
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive.file",
+                "https://www.googleapis.com/auth/drive"
+            ]
+        )
+    except Exception as e:
+        st.error(f"Credential Setup Error: Ensure GCP_CREDENTIALS_JSON is formatted correctly. Details: {str(e)}")
+        raise e
 
 def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
-    """Uploads the file binary directly into the selected department folder."""
     try:
         drive_service = build('drive', 'v3', credentials=creds)
         file_metadata = {'name': file_name, 'parents': [target_id]}
@@ -100,7 +84,6 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
         return "Drive Pending"
 
 def ai_extract_document_details(file_bytes, file_name, mime_type):
-    """Uses Gemini 1.5 Flash vision capability safely pulled from background secrets."""
     try:
         api_key_source = st.secrets["GEMINI_API_KEY"]
         genai.configure(api_key=api_key_source)
@@ -115,11 +98,9 @@ def ai_extract_document_details(file_bytes, file_name, mime_type):
         
         Provide raw text JSON output only.
         """
-        
         response = model.generate_content(
             contents=[{"mime_type": mime_type, "data": file_bytes}, prompt]
         )
-        
         match = re.search(r"\{.*\}", response.text, re.DOTALL)
         if match:
             return json.loads(match.group(0))
@@ -138,7 +119,6 @@ def get_department_sort_index(row_data):
     return 99
 
 def fetch_existing_sheet_rows(sheets_service, sheet_range):
-    """Encapsulated fetch method to keep the main execution block compact."""
     try:
         res = sheets_service.spreadsheets().values().get(
             spreadsheetId=MASTER_SHEET_ID, range=sheet_range
@@ -148,7 +128,6 @@ def fetch_existing_sheet_rows(sheets_service, sheet_range):
         return []
 
 def update_master_sheet_rows(sheets_service, sheet_range, target_year, rows):
-    """Encapsulated clear/write method to stop runtime syntax clippings."""
     sheets_service.spreadsheets().values().clear(
         spreadsheetId=MASTER_SHEET_ID, range=sheet_range
     ).execute()
@@ -158,9 +137,7 @@ def update_master_sheet_rows(sheets_service, sheet_range, target_year, rows):
     ).execute()
 
 # --- 3. FRONTEND INTERFACE ---
-st.set_page_config(
-    page_title="Portal", page_icon="🤖", layout="centered"
-)
+st.set_page_config(page_title="Portal", page_icon="🤖", layout="centered")
 
 st.title("🏢 St. Mary's Smart Research Desk")
 st.markdown("Drop your documents below to sort them beautifully.")
@@ -182,9 +159,7 @@ if st.button("🚀 Submit Documents to Master Sheet"):
         try:
             creds = get_google_credentials()
             sheets_service = build('sheets', 'v4', credentials=creds)
-            f_id = DEPARTMENT_FOLDERS.get(
-                form_dept, "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG"
-            )
+            f_id = DEPARTMENT_FOLDERS.get(form_dept, "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG")
             
             utc_now = datetime.datetime.utcnow()
             ist_offset = datetime.timedelta(hours=5, minutes=30)
@@ -194,12 +169,8 @@ if st.button("🚀 Submit Documents to Master Sheet"):
                 status_text.markdown(f"🤖 **Analyzing:** `{file.name}`...")
                 file_bytes = file.read()
                 
-                extracted = ai_extract_document_details(
-                    file_bytes, file.name, file.type
-                )
-                drive_link = upload_file_to_drive(
-                    file_bytes, file.name, file.type, f_id, creds
-                )
+                extracted = ai_extract_document_details(file_bytes, file.name, file.type)
+                drive_link = upload_file_to_drive(file_bytes, file.name, file.type, f_id, creds)
                 
                 new_entry = [
                     extracted.get("date_of_event", "Check Original Document"),
@@ -215,10 +186,7 @@ if st.button("🚀 Submit Documents to Master Sheet"):
                 rows = fetch_existing_sheet_rows(sheets_service, sheet_range)
 
                 if not rows:
-                    headers = [
-                        "Date", "Faculty Name", "Category", "Title", 
-                        "Document Link", "Department", "Timestamp"
-                    ]
+                    headers = ["Date", "Faculty Name", "Category", "Title", "Document Link", "Department", "Timestamp"]
                     rows = [headers, new_entry]
                 else:
                     headers = rows[0]
@@ -227,12 +195,8 @@ if st.button("🚀 Submit Documents to Master Sheet"):
                     data_rows.sort(key=get_department_sort_index)
                     rows = [headers] + data_rows
 
-                update_master_sheet_rows(
-                    sheets_service, sheet_range, form_year, rows
-                )
-                progress_bar.progress(
-                    int((index + 1) / len(uploaded_files) * 100)
-                )
+                update_master_sheet_rows(sheets_service, sheet_range, form_year, rows)
+                progress_bar.progress(int((index + 1) / len(uploaded_files) * 100))
 
             status_text.empty()
             progress_bar.empty()
