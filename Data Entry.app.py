@@ -1,4 +1,32 @@
-import streamlit as st
+def get_google_credentials():
+    """Generates clean authenticated credentials directly out of environment secrets."""
+    g_sec = st.secrets["gcp_service_account"]
+    
+    # Standardize string formatting into real system linebreaks
+    processed_private_key = g_sec["private_key"].replace("\\n", "\n").replace("\n\n", "\n").strip()
+    
+    info_matrix = {
+        "type": g_sec["type"],
+        "project_id": g_sec["project_id"],
+        "private_key_id": g_sec["private_key_id"],
+        "private_key": processed_private_key,
+        "client_email": g_sec["client_email"],
+        "client_id": g_sec["client_id"],
+        "auth_uri": g_sec["auth_uri"],
+        "token_uri": g_sec["token_uri"],
+        "auth_provider_x509_cert_url": g_sec["auth_provider_x509_cert_url"],
+        "client_x509_cert_url": g_sec["client_x509_cert_url"],
+        "universe_domain": g_sec["universe_domain"]
+    }
+    
+    return service_account.Credentials.from_service_account_info(
+        info_matrix,
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive"
+        ]
+    )import streamlit as st
 import datetime
 import json
 import re
