@@ -2,11 +2,16 @@ import streamlit as st
 import datetime
 import json
 import re
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-import google.generativeai as genai
 import io
+
+# Secure runtime package initialization checks
+try:
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseUpload
+    import google.generativeai as genai
+except ImportError as e:
+    st.error(f"Environment Assembly Pending: Missing library package ({str(e)})")
 
 # --- 1. CORE CONFIGURATION ---
 MASTER_SHEET_ID = "15wPQ9QWydGKF1OIW1QkaeXB3msRjhwiJix4ZVyf6DxA"
@@ -36,9 +41,31 @@ DEPARTMENT_FOLDERS = {
 
 # --- 2. BACKEND API ENGINE ---
 def get_google_credentials():
-    """Generates authenticated credentials from Streamlit Secrets."""
+    """Builds explicit authenticated objects row-by-row to completely bypass PEM load errors."""
+    g_sec = st.secrets["gcp_service_account"]
+    
+    # Cleans and formats the raw private key text structure safely at runtime
+    raw_key = g_sec["private_key"].replace("\\n", "\n").strip()
+    if not raw_key.startswith("-----BEGIN PRIVATE KEY-----"):
+        raw_key = f"-----BEGIN PRIVATE KEY-----\n{raw_key}"
+    if not raw_key.endswith("-----END PRIVATE KEY-----"):
+        raw_key = f"{raw_key}\n-----END PRIVATE KEY-----"
+
+    info_matrix = {
+        "type": "service_account",
+        "project_id": g_sec["project_id"],
+        "private_key_id": g_sec["private_key_id"],
+        "private_key": raw_key,
+        "client_email": g_sec["client_email"],
+        "client_id": g_sec["client_id"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": g_sec["client_x509_cert_url"]
+    }
+    
     return service_account.Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
+        info_matrix,
         scopes=[
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive.file",
@@ -75,7 +102,6 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
 def ai_extract_document_details(file_bytes, file_name, mime_type):
     """Uses Gemini 1.5 Flash vision capability safely pulled from background secrets."""
     try:
-        # SECURE FETCH: Reads key directly from local background memory
         api_key_source = st.secrets["GEMINI_API_KEY"]
         genai.configure(api_key=api_key_source)
         
