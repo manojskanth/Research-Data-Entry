@@ -44,19 +44,20 @@ def get_google_credentials():
     g_sec = st.secrets["gcp_service_account"]
     raw_key = g_sec["private_key"]
     
-    # Secure Multi-line Flattener: Converts paragraph blocks back to structured text tokens
-    if "\n" in raw_key and "\\n" not in raw_key:
-        lines = [line.strip() for line in raw_key.split("\n") if line.strip()]
-        if lines:
-            header = lines[0]
-            footer = lines[-1]
-            body_lines = lines[1:-1]
-            # Join the raw base64 string body sections cleanly
-            body_combined = "".join(body_lines)
-            # Rebuild with a standard single-line layout string that the PEM reader handles perfectly
-            processed_private_key = f"{header}\n{body_combined}\n{footer}"
-    else:
-        processed_private_key = raw_key.replace("\\n", "\n").replace("\n\n", "\n").strip()
+    # 1. Clean out any literal carriage returns and split into individual lines
+    raw_key = raw_key.replace("\r", "")
+    lines = [line.strip() for line in raw_key.split("\n") if line.strip()]
+    
+    # 2. Extract the base64 encrypted data body while ignoring header/footer text artifacts
+    body_lines = []
+    for line in lines:
+        if "BEGIN PRIVATE KEY" in line or "END PRIVATE KEY" in line:
+            continue
+        body_lines.append(line)
+    
+    # 3. Flatten the body and reconstruct a flawless single-line PEM layout format
+    clean_body = "".join(body_lines).replace(" ", "")
+    processed_private_key = f"-----BEGIN PRIVATE KEY-----\n{clean_body}\n-----END PRIVATE KEY-----\n"
 
     info_matrix = {
         "type": g_sec["type"],
