@@ -89,7 +89,7 @@ st.set_page_config(page_title="Faculty Portal", page_icon="📝", layout="wide")
 # --- INTERFACE ROUTING: LOGIN WALL ---
 if not st.session_state.authenticated:
     st.markdown("<h2 style='text-align: center;'>🔐 St. Mary's Secure Research Gateway</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>Authorized Faculty Login Panel</p>", unsafe_with_html=True, unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center;'>Authorized Faculty Login Panel</p>", unsafe_allow_html=True)
     
     col_l1, col_l2, col_l3 = st.columns([1, 1.5, 1])
     with col_l2:
