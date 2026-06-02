@@ -89,7 +89,7 @@ st.set_page_config(page_title="Faculty Portal", page_icon="📝", layout="wide")
 # --- INTERFACE ROUTING: LOGIN WALL ---
 if not st.session_state.authenticated:
     st.markdown("<h2 style='text-align: center;'>🔐 St. Mary's Secure Research Gateway</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>Authorized Faculty Login Panel</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center;'>Authorized Faculty Login Panel</p>", unsafe_with_html=True, unsafe_allow_html=True)
     
     col_l1, col_l2, col_l3 = st.columns([1, 1.5, 1])
     with col_l2:
@@ -123,8 +123,8 @@ with st.sidebar:
         st.rerun()
         
     st.markdown("---")
-    st.subheader("⚙️ Account Settings")
-    with st.expander("🔑 Change Password"):
+    st.sidebar.subheader("⚙️ Account Settings")
+    with st.sidebar.expander("🔑 Change Password"):
         new_pass = st.text_input("Enter New Password", type="password", placeholder="New password...")
         confirm_pass = st.text_input("Confirm New Password", type="password", placeholder="Confirm password...")
         
@@ -201,4 +201,60 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
         try:
             creds = get_google_credentials()
             sheets_service = build('sheets', 'v4', credentials=creds)
-            f_id = DEPARTMENT_FOLDERS.get(
+            f_id = DEPARTMENT_FOLDERS.get(form_dept, "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG")
+            
+            utc_now = datetime.datetime.utcnow()
+            t_now = (utc_now + datetime.timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %H:%M:%S")
+            
+            sheet_range = f"'{form_year}'!A1:I1000"
+            
+            try:
+                res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
+                existing_rows = res.get('values', [])
+            except Exception:
+                existing_rows = []
+
+            if not existing_rows:
+                headers = ["Sl No", "Research Type", "Title", "Date", "Document Link", "Email Address", "Faculty Name", "Department", "Timestamp"]
+                data_rows = []
+            else:
+                headers = existing_rows[0]
+                data_rows = existing_rows[1:]
+
+            for idx, entry in enumerate(row_data_collection):
+                status_text.markdown(f"💾 **Processing Entry Row {entry['sl_no']}:** `{entry['title']}`...")
+                
+                if entry["file"] is not None:
+                    f_bytes = entry["file"].read()
+                    drive_link = upload_file_to_drive(f_bytes, entry["file"].name, entry["file"].type, f_id, creds)
+                else:
+                    drive_link = "No File Uploaded"
+                
+                new_entry_record = [
+                    str(entry["sl_no"]),
+                    entry["type"],
+                    entry["title"],
+                    entry["date"],
+                    drive_link,
+                    st.session_state.logged_email,
+                    form_name.strip(),
+                    form_dept,
+                    t_now
+                ]
+                data_rows.append(new_entry_record)
+                progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
+
+            data_rows.sort(key=get_department_sort_index)
+            final_write_payload = [headers] + data_rows
+
+            sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=MASTER_SHEET_ID, range=f"'{form_year}'!A1", valueInputOption="USER_ENTERED", body={'values': final_write_payload}).execute()
+
+            status_text.empty()
+            progress_bar.empty()
+            st.success(f"🎉 Successfully logged all structural matrix rows to the '{form_year}' sheet ledger!")
+            st.balloons()
+            
+        except Exception as e:
+            st.error(f"System Operational Mismatch: {str(e)}")
