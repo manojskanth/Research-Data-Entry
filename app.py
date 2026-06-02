@@ -29,6 +29,17 @@ DEPARTMENT_FOLDERS = {
     "Commerce": "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"
 }
 
+# Mapping email IDs directly to their flat secret parameter strings
+USER_PASSWORD_KEYS = {
+    "saikiran@stmaryscollege.in": "saikiran_pass",
+    "sangeetha@stmaryscollege.in": "sangeetha_pass",
+    "aditijuyal@stmaryscollege.in": "aditijuyal_pass",
+    "maithry@stmaryscollege.in": "maithry_pass",
+    "soumya@stmaryscollege.in": "soumya_pass",
+    "rajita@stmaryscollege.in": "rajita_pass",
+    "manojkanth@stmaryscollege.in": "manojkanth_pass"
+}
+
 # --- 2. BACKEND GOOGLE INTEGRATION ---
 def get_google_credentials():
     g_sec = st.secrets["gcp_service_account"]
@@ -64,8 +75,8 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
         return "Drive Pending"
 
 def get_department_sort_index(row_data):
-    if len(row_data) > 6 and row_data[6] in DEPARTMENTS:
-        return DEPARTMENTS.index(row_data[6])
+    if len(row_data) > 7 and row_data[7] in DEPARTMENTS:
+        return DEPARTMENTS.index(row_data[7])
     return 99
 
 # --- 3. SESSION STATE INITIALIZATION ---
@@ -87,25 +98,27 @@ if not st.session_state.authenticated:
         input_password = st.text_input("Password", type="password", placeholder="••••••••")
         
         if st.button("Sign In", type="primary", use_container_width=True):
-            try:
-                passwords_db = st.secrets["faculty_passwords"]
-                if input_email in passwords_db and input_password == passwords_db[input_email]:
-                    st.session_state.authenticated = True
-                    st.session_state.logged_email = input_email
-                    st.success("Access Granted.")
-                    st.rerun()
-                else:
-                    st.error("Invalid Email Address or Password. Please try again.")
-            except Exception:
-                st.error("System Configuration Error: Passwords database not found in secrets.")
+            if input_email in USER_PASSWORD_KEYS:
+                secret_key_name = USER_PASSWORD_KEYS[input_email]
+                try:
+                    correct_password = st.secrets[secret_key_name]
+                    if input_password == correct_password:
+                        st.session_state.authenticated = True
+                        st.session_state.logged_email = input_email
+                        st.success("Access Granted.")
+                        st.rerun()
+                    else:
+                        st.error("Invalid password entry. Please try again.")
+                except Exception:
+                    st.error("Authentication value missing from system secrets configuration.")
+            else:
+                st.error("Access Denied: This email address is not authorized.")
     st.stop()
 
 # --- INTERFACE ROUTING: APPLICATION WORKSPACE ---
 
-# --- SIDEBAR UTILITIES ---
 with st.sidebar:
     st.markdown(f"**Logged in as:**\n`{st.session_state.logged_email}`")
-    
     if st.button("🔒 Secure Sign Out", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.logged_email = ""
@@ -123,8 +136,8 @@ with st.sidebar:
             elif new_pass != confirm_pass:
                 st.error("Passwords do not match.")
             else:
-                st.success("Copy this string and share it with the administrator to update your password:")
-                st.code(f'"{st.session_state.logged_email}" = "{new_pass.strip()}"')
+                st.success("Copy this string and share it with the administrator:")
+                st.code(f'{USER_PASSWORD_KEYS[st.session_state.logged_email]} = "{new_pass.strip()}"')
 
 # --- MAIN FACULTY RESOURCE FORM MATRIX ---
 st.title("🏢 St. Mary's Manual Research Logging Desk")
@@ -228,7 +241,6 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
                     st.session_state.logged_email,
                     form_name.strip(),
                     form_dept,
-                    form_year,
                     t_now
                 ]
                 data_rows.append(new_entry_record)
