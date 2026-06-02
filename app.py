@@ -42,17 +42,22 @@ USER_PASSWORD_KEYS = {
 # --- 2. BACKEND GOOGLE INTEGRATION ---
 def get_google_credentials():
     g_sec = st.secrets["gcp_service_account"]
-    
-    # Advanced Key Normalizer to safely strip off double-escaped formatting injections
     raw_key = g_sec["private_key"]
-    processed_private_key = raw_key.replace("\\n", "\n").replace("\n\n", "\n").strip()
     
-    # Re-enclose inside clean PEM anchors if they were clipped
-    if not processed_private_key.startswith("-----BEGIN PRIVATE KEY-----"):
-        processed_private_key = f"-----BEGIN PRIVATE KEY-----\n{processed_private_key}"
-    if not processed_private_key.endswith("-----END PRIVATE KEY-----"):
-        processed_private_key = f"{processed_private_key}\n-----END PRIVATE KEY-----"
-    
+    # Secure Multi-line Flattener: Converts paragraph blocks back to structured text tokens
+    if "\n" in raw_key and "\\n" not in raw_key:
+        lines = [line.strip() for line in raw_key.split("\n") if line.strip()]
+        if lines:
+            header = lines[0]
+            footer = lines[-1]
+            body_lines = lines[1:-1]
+            # Join the raw base64 string body sections cleanly
+            body_combined = "".join(body_lines)
+            # Rebuild with a standard single-line layout string that the PEM reader handles perfectly
+            processed_private_key = f"{header}\n{body_combined}\n{footer}"
+    else:
+        processed_private_key = raw_key.replace("\\n", "\n").replace("\n\n", "\n").strip()
+
     info_matrix = {
         "type": g_sec["type"],
         "project_id": g_sec["project_id"],
