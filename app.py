@@ -82,10 +82,10 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
     except Exception:
         return "Drive Pending"
 
-# Department sorting key tracks column [7] in the row array mapping
+# Department sorting key matches the index location of the department string in the row layout (Column F -> Index 5)
 def get_department_sort_index(row_data):
-    if len(row_data) > 7 and row_data[7] in DEPARTMENTS:
-        return DEPARTMENTS.index(row_data[7])
+    if len(row_data) > 5 and row_data[5] in DEPARTMENTS:
+        return DEPARTMENTS.index(row_data[5])
     return 99
 
 # --- 3. SESSION STATE INITIALIZATION ---
@@ -193,7 +193,7 @@ for i in range(1, 11):
             "sl_no": i,
             "type": r_type if r_type != "-- Select Entry --" else "Unspecified",
             "title": r_title.strip() if r_title.strip() else "Untitled Entry",
-            "date": r_date.strftime("%Y-%m-%d") if r_date else "Check Original Document",
+            "date": r_date, # Keep as date object here to extract month/year cleanly later
             "file": r_file
         })
 
@@ -224,9 +224,9 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
             except Exception:
                 existing_rows = []
 
-            # FIXED HEADERS ALIGNMENT SEQUENCE MATCHING YOUR EXPERIMENTAL RUNS
+            # Master Sheet Header layout matches your manual entry template layout perfectly
             if not existing_rows:
-                headers = ["Sl No", "Research Type", "Title", "Date", "Document Link", "Email Address", "Faculty Name", "Department", "Timestamp"]
+                headers = ["Date", "Faculty Name", "Category", "Title", "Document Link", "Department", "Timestamp", "Year", "Month"]
                 data_rows = []
             else:
                 headers = existing_rows[0]
@@ -241,17 +241,22 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
                 else:
                     drive_link = "No File Uploaded"
                 
-                # RE-ORDERED CELL RECORD ARRAYS TO PREVENT COLUMN DRIFTING
+                # Extract string tokens for separate Year and Month slots
+                str_date = entry["date"].strftime("%Y-%m-%d") if entry["date"] else "Check Attachment"
+                str_year = entry["date"].strftime("%Y") if entry["date"] else ""
+                str_month = entry["date"].strftime("%B") if entry["date"] else ""
+                
+                # RE-ORDERED SYSTEM ROWS TO COINCIDE WITH YOUR EXACT EXCEL MASTER LEDGER ORDER
                 new_entry_record = [
-                    str(entry["sl_no"]),              # Column A: Sl No
-                    entry["type"],                    # Column B: Research Type
-                    entry["title"],                   # Column C: Title
-                    entry["date"],                    # Column D: Date
-                    drive_link,                       # Column E: Document Link
-                    st.session_state.logged_email,    # Column F: Email Address
-                    form_name.strip(),                # Column G: Faculty Name
-                    form_dept,                        # Column H: Department
-                    t_now                             # Column I: Timestamp
+                    str_date,                     # Column A: Date
+                    form_name.strip(),            # Column B: Faculty Name
+                    entry["type"],                # Column C: Category (Research Type)
+                    entry["title"],               # Column D: Title
+                    drive_link,                   # Column E: Document Link
+                    form_dept,                    # Column F: Department
+                    t_now,                        # Column G: Timestamp
+                    str_year,                     # Column H: Year
+                    str_month                     # Column I: Month
                 ]
                 data_rows.append(new_entry_record)
                 progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
