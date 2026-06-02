@@ -44,15 +44,20 @@ def get_google_credentials():
     g_sec = st.secrets["gcp_service_account"]
     raw_key = g_sec["private_key"]
     
-    # 1. Strip raw markers, backslashes, tabs, or quotes injected by text parsers
-    raw_key = raw_key.replace("\\n", "").replace("\n", "").replace("\r", "")
-    raw_key = raw_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
-    clean_base64 = raw_key.strip().replace(" ", "")
+    # Clean and re-stitch any text transformations safely
+    raw_key = raw_key.replace("\\n", "\n").replace("\r", "")
+    lines = [line.strip() for line in raw_key.split("\n") if line.strip()]
     
-    # 2. Re-slice the single flat string into perfect 64-character chunks (Strict standard PEM layout)
-    chunks = [clean_base64[i:i+64] for i in range(0, len(clean_base64), 64)]
+    body_lines = []
+    for line in lines:
+        if "BEGIN PRIVATE KEY" in line or "END PRIVATE KEY" in line:
+            continue
+        body_lines.append(line)
+        
+    clean_body = "".join(body_lines).replace(" ", "")
     
-    # 3. Assemble with structural newline formatting blocks that cryptography module requires
+    # Cut base64 sequence cleanly into standard structural 64 character blocks
+    chunks = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
     formatted_body = "\n".join(chunks)
     processed_private_key = f"-----BEGIN PRIVATE KEY-----\n{formatted_body}\n-----END PRIVATE KEY-----\n"
 
