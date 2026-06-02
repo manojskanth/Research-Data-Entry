@@ -44,17 +44,13 @@ def get_google_credentials():
     g_sec = st.secrets["gcp_service_account"]
     raw_key = g_sec["private_key"]
     
-    # Universal Key Sanitizer: Strips out text-escapes, newlines, and space artifacts completely
     clean_base64 = raw_key.replace("\\n", "").replace("\n", "").replace("\r", "")
     clean_base64 = clean_base64.replace("-----BEGIN PRIVATE KEY-----", "")
     clean_base64 = clean_base64.replace("-----END PRIVATE KEY-----", "")
     clean_base64 = clean_base64.strip().replace(" ", "")
     
-    # Re-slice the absolute raw sequence into strict standard cryptographic 64-character blocks
     chunks = [clean_base64[i:i+64] for i in range(0, len(clean_base64), 64)]
     formatted_body = "\n".join(chunks)
-    
-    # Reconstruct pristine PEM structure manually
     processed_private_key = f"-----BEGIN PRIVATE KEY-----\n{formatted_body}\n-----END PRIVATE KEY-----\n"
 
     info_matrix = {
@@ -86,6 +82,7 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
     except Exception:
         return "Drive Pending"
 
+# Department sorting key tracks column [7] in the row array mapping
 def get_department_sort_index(row_data):
     if len(row_data) > 7 and row_data[7] in DEPARTMENTS:
         return DEPARTMENTS.index(row_data[7])
@@ -227,6 +224,7 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
             except Exception:
                 existing_rows = []
 
+            # FIXED HEADERS ALIGNMENT SEQUENCE MATCHING YOUR EXPERIMENTAL RUNS
             if not existing_rows:
                 headers = ["Sl No", "Research Type", "Title", "Date", "Document Link", "Email Address", "Faculty Name", "Department", "Timestamp"]
                 data_rows = []
@@ -243,16 +241,17 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
                 else:
                     drive_link = "No File Uploaded"
                 
+                # RE-ORDERED CELL RECORD ARRAYS TO PREVENT COLUMN DRIFTING
                 new_entry_record = [
-                    str(entry["sl_no"]),
-                    entry["type"],
-                    entry["title"],
-                    entry["date"],
-                    drive_link,
-                    st.session_state.logged_email,
-                    form_name.strip(),
-                    form_dept,
-                    t_now
+                    str(entry["sl_no"]),              # Column A: Sl No
+                    entry["type"],                    # Column B: Research Type
+                    entry["title"],                   # Column C: Title
+                    entry["date"],                    # Column D: Date
+                    drive_link,                       # Column E: Document Link
+                    st.session_state.logged_email,    # Column F: Email Address
+                    form_name.strip(),                # Column G: Faculty Name
+                    form_dept,                        # Column H: Department
+                    t_now                             # Column I: Timestamp
                 ]
                 data_rows.append(new_entry_record)
                 progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
