@@ -42,7 +42,16 @@ USER_PASSWORD_KEYS = {
 # --- 2. BACKEND GOOGLE INTEGRATION ---
 def get_google_credentials():
     g_sec = st.secrets["gcp_service_account"]
-    processed_private_key = g_sec["private_key"].replace("\\n", "\n").replace("\n\n", "\n").strip()
+    
+    # Advanced Key Normalizer to safely strip off double-escaped formatting injections
+    raw_key = g_sec["private_key"]
+    processed_private_key = raw_key.replace("\\n", "\n").replace("\n\n", "\n").strip()
+    
+    # Re-enclose inside clean PEM anchors if they were clipped
+    if not processed_private_key.startswith("-----BEGIN PRIVATE KEY-----"):
+        processed_private_key = f"-----BEGIN PRIVATE KEY-----\n{processed_private_key}"
+    if not processed_private_key.endswith("-----END PRIVATE KEY-----"):
+        processed_private_key = f"{processed_private_key}\n-----END PRIVATE KEY-----"
     
     info_matrix = {
         "type": g_sec["type"],
