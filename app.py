@@ -104,7 +104,11 @@ st.set_page_config(page_title="Faculty Portal", page_icon="📝", layout="wide")
 
 # --- INTERFACE ROUTING: LOGIN WALL ---
 if not st.session_state.authenticated:
-    st.markdown("<h2 style='text-align: center;'>🔐 St. Mary's Secure Research Gateway</h2>", unsafe_allow_html=True)
+    col_logo1, col_logo2, col_logo3 = st.columns([1.2, 1.0, 1.2])
+    with col_logo2:
+        st.image("https://i.imgur.com/uVepZ0v.png", use_container_width=True)
+        
+    st.markdown("<h2 style='text-align: center; margin-top: -15px;'>🔐 St. Mary's Secure Research Gateway</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>Authorized Faculty Login Panel</p>", unsafe_allow_html=True)
     
     col_l1, col_l2, col_l3 = st.columns([1, 1.5, 1])
@@ -128,17 +132,22 @@ if not st.session_state.authenticated:
                     st.error("Authentication value missing from system secrets configuration.")
             else:
                 st.error("Access Denied: This email address is not authorized.")
+                
+    st.markdown("<br><p style='text-align: center; font-size: 0.85em; color: #888;'>Developed by Research Committee @ St. Mary's</p>", unsafe_allow_html=True)
     st.stop()
 
 # --- INTERFACE ROUTING: APPLICATION WORKSPACE ---
-top_col1, top_col2 = st.columns([6.5, 3.5])
+top_col1, top_col2, top_col3 = st.columns([1.5, 5.0, 3.5])
 
 with top_col1:
-    st.title("🏢 St. Mary's Manual Research Logging Desk")
-    st.markdown(f"**Logged in as:** `{st.session_state.logged_email}`")
+    st.image("https://i.imgur.com/uVepZ0v.png", use_container_width=True)
 
 with top_col2:
-    st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<h1 style='margin-bottom: 0px; padding-top: 5px;'>St. Mary's College</h1>", unsafe_allow_html=True)
+    st.markdown(f"**Manual Research Logging Desk** &nbsp;|&nbsp; Logged in as: `{st.session_state.logged_email}`")
+
+with top_col3:
+    st.markdown("<div style='padding-top: 15px;'></div>", unsafe_allow_html=True)
     acc_expander = st.expander("⚙️ Account Settings & Security")
     with acc_expander:
         with st.form("password_change_form", clear_on_submit=False):
@@ -161,8 +170,7 @@ with top_col2:
             st.session_state.logged_email = ""
             st.rerun()
 
-st.markdown("Fill out your entry matrix fields and submit them cleanly to the Master Sheet ledger.")
-st.markdown("---")
+st.markdown("<hr style='margin:15px 0px;' />", unsafe_allow_html=True)
 
 st.subheader("👤 Faculty Member Profile")
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
@@ -315,7 +323,6 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
                 
                 duration_span = f"{str_date_from} to {str_date_to}" if entry["date_to"] else str_date_from
                 
-                # CLEAN 13-CELL RECORD PAYLOAD WITHOUT YEAR AND MONTH COLUMNS
                 new_entry_record = [
                     form_name.strip(),            # Column A: Faculty Name
                     form_dept,                    # Column B: Department
@@ -348,3 +355,6 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
             
         except Exception as e:
             st.error(f"System Operational Mismatch: {str(e)}")
+
+# Minimalist, clean footer layout signature pinned at the bottom of the active interface
+st.markdown("<br><hr/><p style='text-align: center; font-size: 0.85em; color: #888;'>Developed by Research Committee @ St. Mary's</p>", unsafe_allow_html=True)
