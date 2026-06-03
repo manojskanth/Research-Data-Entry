@@ -148,12 +148,10 @@ with top_col1:
         st.image("logo.png", use_container_width=True)
 
 with top_col2:
-    # Increased font size for Title header
     st.markdown("<h1 style='font-size: 2.5em; margin-bottom: 0px; padding-top: 15px;'>Research Data Logging Desk</h1>", unsafe_allow_html=True)
 
 with top_col3:
     st.markdown("<div style='padding-top: 5px;'></div>", unsafe_allow_html=True)
-    # Logged in as moved above the settings drop box container
     st.markdown(f"<p style='text-align: right; margin-bottom: 2px; font-size: 0.9em; color: #555;'>Logged in as: <b>{st.session_state.logged_email}</b></p>", unsafe_allow_html=True)
     acc_expander = st.expander("⚙️ Account Settings & Security")
     with acc_expander:
@@ -200,7 +198,6 @@ row_data_collection = []
 for i in range(1, 11):
     st.markdown(f"#### 🔘 Entry Row Record #{i}")
     
-    # Adjusted structural column split to adapt beautifully without static URL headers
     r_type_col, r_title_col = st.columns([3.0, 9.0])
     with r_type_col:
         r_type = st.selectbox(f"Research Type", ["-- Select Entry --"] + RESEARCH_TYPES, key=f"type_{i}")
@@ -217,7 +214,6 @@ for i in range(1, 11):
     r_date_from = None
     r_date_to = None
     
-    # Conditional Form Factor layouts rendering fields only where contextual parameters apply
     if r_type in ["FDP", "Workshop"]:
         sub_col1, sub_col2, sub_col3 = st.columns([3.0, 3.0, 6.0])
         with sub_col1:
@@ -239,13 +235,11 @@ for i in range(1, 11):
             org_body = st.text_input(f"Conducted By", placeholder="Enter university/body name...", key=f"cond_{i}")
             
     else:
-        # Layout metrics executed for single-date events (Publications/Books)
         if r_type in ["Paper publication", "Book Chapter", "Full Book"]:
             date_col, url_col = st.columns([4.0, 8.0])
             with date_col:
                 r_date_from = st.date_input(f"Date of Event", value=None, key=f"date_single_{i}")
             with url_col:
-                # URL is explicitly enabled and drawn ONLY for publications and books
                 r_url_input = st.text_input(f"URL of Publication (Optional)", placeholder="Paste web link if available...", key=f"url_{i}")
                 if r_url_input.strip():
                     r_url = r_url_input.strip()
@@ -256,9 +250,12 @@ for i in range(1, 11):
         r_date_to = None
         
         if r_type == "Paper publication":
-            sub_col_pub = st.columns(1)[0]
-            with sub_col_pub:
+            # FIXED: Splits columns correctly for Paper publications to restore the ISSN field
+            sub_pub_col1, sub_pub_col2 = st.columns([6.0, 6.0])
+            with sub_pub_col1:
                 j_type = st.selectbox(f"Journal Listing Index", JOURNAL_TYPES, key=f"jtype_{i}")
+            with sub_pub_col2:
+                isbn_issn = st.text_input(f"ISSN Number", placeholder="Enter ISSN code...", key=f"issn_{i}")
                 
         elif r_type in ["Book Chapter", "Full Book"]:
             sub_col_bk1, sub_col_bk2, sub_col_bk3 = st.columns([4.0, 3.0, 5.0])
@@ -373,5 +370,4 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
         except Exception as e:
             st.error(f"System Operational Mismatch: {str(e)}")
 
-# Formatted larger footer block mapping requested parameters explicitly
 st.markdown("<br><hr/><p style='text-align: center; font-size: 1.05em; font-weight: bold; color: #555;'>Developed by Research Committee & St. Mary's</p>", unsafe_allow_html=True)
