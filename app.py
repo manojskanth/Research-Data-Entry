@@ -370,4 +370,4 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
         except Exception as e:
             st.error(f"System Operational Mismatch: {str(e)}")
 
-st.markdown("<br><hr/><p style='text-align: center; font-size: 1.05em; font-weight: bold; color: #555;'>Developed by Research Committee & St. Mary's</p>", unsafe_allow_html=True)
+st.markdown("<br><hr/><p style='text-align: center; font-size: 1.05em; font-weight: bold; color: #555;'>Developed by Research Committee @ St. Mary's</p>", unsafe_allow_html=True)
