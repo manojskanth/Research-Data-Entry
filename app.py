@@ -131,8 +131,6 @@ if not st.session_state.authenticated:
     st.stop()
 
 # --- INTERFACE ROUTING: APPLICATION WORKSPACE ---
-
-# 1. NEW TOP PANEL ROUTING GRID LAYOUT (Bypasses Sidebar entirely)
 top_col1, top_col2 = st.columns([6.5, 3.5])
 
 with top_col1:
@@ -141,7 +139,6 @@ with top_col1:
 
 with top_col2:
     st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
-    # Align Account Tools gracefully on the top right
     acc_expander = st.expander("⚙️ Account Settings & Security")
     with acc_expander:
         with st.form("password_change_form", clear_on_submit=False):
@@ -167,7 +164,6 @@ with top_col2:
 st.markdown("Fill out your entry matrix fields and submit them cleanly to the Master Sheet ledger.")
 st.markdown("---")
 
-# 2. PROFILE CONFIGURATION SECTION
 st.subheader("👤 Faculty Member Profile")
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
 
@@ -182,8 +178,6 @@ with col_d:
     form_year = st.selectbox("Select Academic Year", ["-- Select Academic Year --"] + ACADEMIC_YEARS)
 
 st.markdown("---")
-
-# 3. DYNAMIC MATRIX LIST ROWS SECTION
 st.subheader("📊 Research Matrix Log (Up to 10 Rows)")
 
 row_data_collection = []
@@ -307,4 +301,48 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
                 
                 if entry["file"] is not None:
                     f_bytes = entry["file"].read()
-                    drive_link = upload_file_to_drive(f_bytes, entry["file"].name, entry
+                    drive_link = upload_file_to_drive(f_bytes, entry["file"].name, entry["file"].type, f_id, creds)
+                else:
+                    drive_link = "No File Uploaded"
+                
+                str_date_from = entry["date_from"].strftime("%Y-%m-%d") if entry["date_from"] else "Check Attachment"
+                str_date_to = entry["date_to"].strftime("%Y-%m-%d") if entry["date_to"] else str_date_from
+                
+                str_year = entry["date_from"].strftime("%Y") if entry["date_from"] else ""
+                str_month = entry["date_from"].strftime("%B") if entry["date_from"] else ""
+                
+                new_entry_record = [
+                    str_date_from,                # Column A: Date From
+                    str_date_to,                  # Column B: Date To
+                    form_name.strip(),            # Column C: Faculty Name
+                    entry["type"],                # Column D: Category
+                    entry["title"],               # Column E: Title
+                    drive_link,                   # Column F: Document Link
+                    form_dept,                    # Column G: Department
+                    t_now,                        # Column H: Timestamp
+                    str_year,                     # Column I: Year
+                    str_month,                    # Column J: Month
+                    entry["pub_url"],             # Column K: Publication URL
+                    entry["j_type"],              # Column L: Journal Type
+                    entry["p_name"],              # Column M: Publisher Name
+                    entry["p_scope"],             # Column N: Publisher Scope
+                    entry["c_scope"],             # Column O: Conference Scope
+                    entry["org_body"]             # Column P: Organizing/Conducting Body
+                ]
+                data_rows.append(new_entry_record)
+                progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
+
+            data_rows.sort(key=get_department_sort_index)
+            final_write_payload = [headers] + data_rows
+
+            sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=MASTER_SHEET_ID, range=f"'{form_year}'!A1", valueInputOption="USER_ENTERED", body={'values': final_write_payload}).execute()
+
+            status_text.empty()
+            progress_bar.empty()
+            st.success(f"🎉 Successfully logged all organized entries sorted by Department layout to the master ledger!")
+            st.balloons()
+            
+        except Exception as e:
+            st.error(f"System Operational Mismatch: {str(e)}")
