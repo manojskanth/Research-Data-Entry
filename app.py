@@ -28,7 +28,6 @@ SCOPES = [
     "National", "International"
 ]
 
-# Automated institutional faculty email-to-profile directory lookup map
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
@@ -132,50 +131,59 @@ if not st.session_state.authenticated:
     st.stop()
 
 # --- INTERFACE ROUTING: APPLICATION WORKSPACE ---
-with st.sidebar:
-    st.markdown(f"**Logged in as:**\n`{st.session_state.logged_email}`")
-    if st.button("🔒 Secure Sign Out", use_container_width=True):
-        st.session_state.authenticated = False
-        st.session_state.logged_email = ""
-        st.rerun()
-        
-    st.markdown("---")
-    st.sidebar.subheader("⚙️ Account Settings")
-    with st.sidebar.expander("🔑 Change Password"):
-        new_pass = st.text_input("Enter New Password", type="password", placeholder="New password...")
-        confirm_pass = st.text_input("Confirm New Password", type="password", placeholder="Confirm password...")
-        
-        if st.button("Generate Update String", use_container_width=True):
-            if not new_pass.strip():
-                st.error("Password cannot be blank.")
-            elif new_pass != confirm_pass:
-                st.error("Passwords do not match.")
-            else:
-                st.success("Copy this string and share it with the administrator:")
-                st.code(f'{FACULTY_DIRECTORY[st.session_state.logged_email]["secret_key"]} = "{new_pass.strip()}"')
 
-st.title("🏢 St. Mary's Manual Research Logging Desk")
+# 1. NEW TOP PANEL ROUTING GRID LAYOUT (Bypasses Sidebar entirely)
+top_col1, top_col2 = st.columns([6.5, 3.5])
+
+with top_col1:
+    st.title("🏢 St. Mary's Manual Research Logging Desk")
+    st.markdown(f"**Logged in as:** `{st.session_state.logged_email}`")
+
+with top_col2:
+    st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+    # Align Account Tools gracefully on the top right
+    acc_expander = st.expander("⚙️ Account Settings & Security")
+    with acc_expander:
+        with st.form("password_change_form", clear_on_submit=False):
+            st.markdown("##### 🔑 Change Account Password")
+            new_pass = st.text_input("Enter New Password", type="password", placeholder="New password...")
+            confirm_pass = st.text_input("Confirm New Password", type="password", placeholder="Confirm password...")
+            submit_pass = st.form_submit_button("Generate Update Code", use_container_width=True)
+            
+            if submit_pass:
+                if not new_pass.strip():
+                    st.error("Password cannot be blank.")
+                elif new_pass != confirm_pass:
+                    st.error("Passwords do not match.")
+                else:
+                    st.success("Share this string with the administrator:")
+                    st.code(f'{FACULTY_DIRECTORY[st.session_state.logged_email]["secret_key"]} = "{new_pass.strip()}"')
+        
+        if st.button("🔒 Secure Sign Out", type="secondary", use_container_width=True):
+            st.session_state.authenticated = False
+            st.session_state.logged_email = ""
+            st.rerun()
+
 st.markdown("Fill out your entry matrix fields and submit them cleanly to the Master Sheet ledger.")
-
 st.markdown("---")
-st.subheader("👤 Faculty Member Profile")
 
-# Look up current user's profile metadata dynamically
+# 2. PROFILE CONFIGURATION SECTION
+st.subheader("👤 Faculty Member Profile")
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
 
 col_a, col_b, col_c, col_d = st.columns(4)
 with col_a:
     st.text_input("Faculty Email Address", value=st.session_state.logged_email, disabled=True)
 with col_b:
-    # Auto-fills the name based on the authenticated email address
     form_name = st.text_input("Faculty Member Name", value=current_faculty_name, disabled=True)
 with col_c:
-    # Uses a blank option first to force active faculty interaction
     form_dept = st.selectbox("Select Department", ["-- Select Department --"] + DEPARTMENTS)
 with col_d:
     form_year = st.selectbox("Select Academic Year", ["-- Select Academic Year --"] + ACADEMIC_YEARS)
 
 st.markdown("---")
+
+# 3. DYNAMIC MATRIX LIST ROWS SECTION
 st.subheader("📊 Research Matrix Log (Up to 10 Rows)")
 
 row_data_collection = []
@@ -197,7 +205,6 @@ for i in range(1, 11):
     c_scope = "N/A"
     org_body = "N/A"
     
-    # Conditional Layout rendering matching your specific category parameters
     if r_type in ["FDP", "Workshop"]:
         sub_col1, sub_col2, sub_col3 = st.columns([3.0, 3.0, 6.0])
         with sub_col1:
@@ -219,7 +226,6 @@ for i in range(1, 11):
             org_body = st.text_input(f"Conducted By", placeholder="Enter university/body name...", key=f"cond_{i}")
             
     else:
-        # Defaults for items like publications or books that only span a single execution date points
         sub_col1 = st.columns(1)[0]
         with sub_col1:
             r_date_from = st.date_input(f"Date of Event", value=None, key=f"date_single_{i}")
@@ -259,7 +265,6 @@ for i in range(1, 11):
 st.markdown("---")
 
 if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use_container_width=True):
-    # Strict validation flags to ensure faculty provide explicit department and year choices
     if form_dept == "-- Select Department --":
         st.error("Form Validation Error: Please select your explicit Department before submitting.")
     elif form_year == "-- Select Academic Year --":
@@ -302,49 +307,4 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
                 
                 if entry["file"] is not None:
                     f_bytes = entry["file"].read()
-                    drive_link = upload_file_to_drive(f_bytes, entry["file"].name, entry["file"].type, f_id, creds)
-                else:
-                    drive_link = "No File Uploaded"
-                
-                # Format start and end date text representations accurately
-                str_date_from = entry["date_from"].strftime("%Y-%m-%d") if entry["date_from"] else "Check Attachment"
-                str_date_to = entry["date_to"].strftime("%Y-%m-%d") if entry["date_to"] else str_date_from
-                
-                str_year = entry["date_from"].strftime("%Y") if entry["date_from"] else ""
-                str_month = entry["date_from"].strftime("%B") if entry["date_from"] else ""
-                
-                new_entry_record = [
-                    str_date_from,                # Column A: Date From
-                    str_date_to,                  # Column B: Date To
-                    form_name.strip(),            # Column C: Faculty Name
-                    entry["type"],                # Column D: Category
-                    entry["title"],               # Column E: Title
-                    drive_link,                   # Column F: Document Link
-                    form_dept,                    # Column G: Department
-                    t_now,                        # Column H: Timestamp
-                    str_year,                     # Column I: Year
-                    str_month,                    # Column J: Month
-                    entry["pub_url"],             # Column K: Publication URL
-                    entry["j_type"],              # Column L: Journal Type
-                    entry["p_name"],              # Column M: Publisher Name
-                    entry["p_scope"],             # Column N: Publisher Scope
-                    entry["c_scope"],             # Column O: Conference Scope
-                    entry["org_body"]             # Column P: Organizing/Conducting Body
-                ]
-                data_rows.append(new_entry_record)
-                progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
-
-            data_rows.sort(key=get_department_sort_index)
-            final_write_payload = [headers] + data_rows
-
-            sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
-            sheets_service.spreadsheets().values().update(
-                spreadsheetId=MASTER_SHEET_ID, range=f"'{form_year}'!A1", valueInputOption="USER_ENTERED", body={'values': final_write_payload}).execute()
-
-            status_text.empty()
-            progress_bar.empty()
-            st.success(f"🎉 Successfully logged all structured records cleanly to the master ledger spreadsheet database!")
-            st.balloons()
-            
-        except Exception as e:
-            st.error(f"System Operational Mismatch: {str(e)}")
+                    drive_link = upload_file_to_drive(f_bytes, entry["file"].name, entry
