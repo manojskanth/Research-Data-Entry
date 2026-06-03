@@ -82,7 +82,7 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
     except Exception:
         return "Drive Pending"
 
-# Department sorting key matches the index location of the department string in the row layout (Column F -> Index 5)
+# Master sorting algorithm: groups matching the exact order of the DEPARTMENTS list configuration
 def get_department_sort_index(row_data):
     if len(row_data) > 5 and row_data[5] in DEPARTMENTS:
         return DEPARTMENTS.index(row_data[5])
@@ -166,17 +166,19 @@ with col_d:
 st.markdown("---")
 st.subheader("📊 Research Matrix Log (Up to 10 Rows)")
 
-hdr_1, hdr_2, hdr_3, hdr_4, hdr_5 = st.columns([0.6, 2.0, 3.5, 1.8, 2.5])
+# Column layout split modified to gracefully blend the publication link text boxes
+hdr_1, hdr_2, hdr_3, hdr_4, hdr_5, hdr_6 = st.columns([0.5, 1.8, 2.5, 2.2, 1.5, 2.0])
 with hdr_1: st.markdown("**Sl No.**")
 with hdr_2: st.markdown("**Research Type**")
 with hdr_3: st.markdown("**Precise Title**")
-with hdr_4: st.markdown("**Date of Event**")
-with hdr_5: st.markdown("**Upload Document Certificate**")
+with hdr_4: st.markdown("**URL of Publication (Optional)**")
+with hdr_5: st.markdown("**Date of Event**")
+with hdr_6: st.markdown("**Upload Document Certificate**")
 
 row_data_collection = []
 
 for i in range(1, 11):
-    row_col1, row_col2, row_col3, row_col4, row_col5 = st.columns([0.6, 2.0, 3.5, 1.8, 2.5])
+    row_col1, row_col2, row_col3, row_col4, row_col5, row_col6 = st.columns([0.5, 1.8, 2.5, 2.2, 1.5, 2.0])
     with row_col1:
         st.markdown(f"<p style='padding-top:25px; text-align:center;'>{i}</p>", unsafe_allow_html=True)
     with row_col2:
@@ -184,8 +186,10 @@ for i in range(1, 11):
     with row_col3:
         r_title = st.text_input(f"Title-{i}", placeholder="Enter title/theme text...", label_visibility="collapsed")
     with row_col4:
-        r_date = st.date_input(f"Date-{i}", value=None, key=f"date_widget_{i}", label_visibility="collapsed")
+        r_url = st.text_input(f"URL-{i}", placeholder="Paste publication web link...", label_visibility="collapsed")
     with row_col5:
+        r_date = st.date_input(f"Date-{i}", value=None, key=f"date_widget_{i}", label_visibility="collapsed")
+    with row_col6:
         r_file = st.file_uploader(f"File-{i}", key=f"file_widget_{i}", label_visibility="collapsed")
         
     if r_type != "-- Select Entry --" or r_title.strip():
@@ -193,7 +197,8 @@ for i in range(1, 11):
             "sl_no": i,
             "type": r_type if r_type != "-- Select Entry --" else "Unspecified",
             "title": r_title.strip() if r_title.strip() else "Untitled Entry",
-            "date": r_date, # Keep as date object here to extract month/year cleanly later
+            "pub_url": r_url.strip() if r_url.strip() else "No Link Provided",
+            "date": r_date,
             "file": r_file
         })
 
@@ -216,7 +221,7 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
             utc_now = datetime.datetime.utcnow()
             t_now = (utc_now + datetime.timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %H:%M:%S")
             
-            sheet_range = f"'{form_year}'!A1:I1000"
+            sheet_range = f"'{form_year}'!A1:K1000"
             
             try:
                 res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
@@ -224,9 +229,9 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
             except Exception:
                 existing_rows = []
 
-            # Master Sheet Header layout matches your manual entry template layout perfectly
+            # Added the Publication URL column header slot to the tracking array (Extends layout to Column K)
             if not existing_rows:
-                headers = ["Date", "Faculty Name", "Category", "Title", "Document Link", "Department", "Timestamp", "Year", "Month"]
+                headers = ["Date", "Faculty Name", "Category", "Title", "Document Link", "Department", "Timestamp", "Year", "Month", "Publication URL"]
                 data_rows = []
             else:
                 headers = existing_rows[0]
@@ -241,26 +246,26 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
                 else:
                     drive_link = "No File Uploaded"
                 
-                # Extract string tokens for separate Year and Month slots
                 str_date = entry["date"].strftime("%Y-%m-%d") if entry["date"] else "Check Attachment"
                 str_year = entry["date"].strftime("%Y") if entry["date"] else ""
                 str_month = entry["date"].strftime("%B") if entry["date"] else ""
                 
-                # RE-ORDERED SYSTEM ROWS TO COINCIDE WITH YOUR EXACT EXCEL MASTER LEDGER ORDER
                 new_entry_record = [
                     str_date,                     # Column A: Date
                     form_name.strip(),            # Column B: Faculty Name
-                    entry["type"],                # Column C: Category (Research Type)
+                    entry["type"],                # Column C: Category
                     entry["title"],               # Column D: Title
                     drive_link,                   # Column E: Document Link
                     form_dept,                    # Column F: Department
                     t_now,                        # Column G: Timestamp
                     str_year,                     # Column H: Year
-                    str_month                     # Column I: Month
+                    str_month,                    # Column I: Month
+                    entry["pub_url"]              # Column J: Publication URL
                 ]
                 data_rows.append(new_entry_record)
                 progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
 
+            # Strictly orders everything matching the DEPARTMENTS sorting index hierarchy
             data_rows.sort(key=get_department_sort_index)
             final_write_payload = [headers] + data_rows
 
