@@ -90,8 +90,8 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
         return "Drive Pending"
 
 def get_department_sort_index(row_data):
-    if len(row_data) > 6 and row_data[6] in DEPARTMENTS:
-        return DEPARTMENTS.index(row_data[6])
+    if len(row_data) > 1 and row_data[1] in DEPARTMENTS:
+        return DEPARTMENTS.index(row_data[1])
     return 99
 
 # --- 3. SESSION STATE INITIALIZATION ---
@@ -198,6 +198,9 @@ for i in range(1, 11):
     p_scope = "N/A"
     c_scope = "N/A"
     org_body = "N/A"
+    isbn_issn = "N/A"
+    r_date_from = None
+    r_date_to = None
     
     if r_type in ["FDP", "Workshop"]:
         sub_col1, sub_col2, sub_col3 = st.columns([3.0, 3.0, 6.0])
@@ -226,16 +229,20 @@ for i in range(1, 11):
         r_date_to = None
         
         if r_type == "Paper publication":
-            sub_col_pub = st.columns(1)[0]
-            with sub_col_pub:
+            sub_col_pub1, sub_col_pub2 = st.columns([4.0, 6.0])
+            with sub_col_pub1:
                 j_type = st.selectbox(f"Journal Listing Index", JOURNAL_TYPES, key=f"jtype_{i}")
+            with sub_col_pub2:
+                isbn_issn = st.text_input(f"ISSN Number", placeholder="Enter ISSN code...", key=f"issn_{i}")
                 
         elif r_type in ["Book Chapter", "Full Book"]:
-            sub_col_bk1, sub_col_bk2 = st.columns([6.0, 4.0])
+            sub_col_bk1, sub_col_bk2, sub_col_bk3 = st.columns([4.0, 3.0, 5.0])
             with sub_col_bk1:
                 p_name = st.text_input(f"Name of the Publisher", placeholder="Enter publishing house...", key=f"pname_{i}")
             with sub_col_bk2:
                 p_scope = st.selectbox(f"Publisher Classification", SCOPES, key=f"pscope_{i}")
+            with sub_col_bk3:
+                isbn_issn = st.text_input(f"ISBN Number", placeholder="Enter ISBN code...", key=f"isbn_{i}")
             
     r_file = st.file_uploader(f"Upload Document Certificate Support Asset", key=f"file_{i}")
     st.markdown("<hr style='margin:10px 0px; border-top: 1px dashed #ddd;' />", unsafe_allow_html=True)
@@ -253,7 +260,8 @@ for i in range(1, 11):
             "p_name": p_name,
             "p_scope": p_scope,
             "c_scope": c_scope,
-            "org_body": org_body.strip() if (isinstance(org_body, str) and org_body.strip()) else org_body
+            "org_body": org_body.strip() if (isinstance(org_body, str) and org_body.strip()) else org_body,
+            "isbn_issn": isbn_issn.strip() if (isinstance(isbn_issn, str) and isbn_issn.strip()) else isbn_issn
         })
 
 st.markdown("---")
@@ -274,10 +282,7 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
             sheets_service = build('sheets', 'v4', credentials=creds)
             f_id = DEPARTMENT_FOLDERS.get(form_dept, "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG")
             
-            utc_now = datetime.datetime.utcnow()
-            t_now = (utc_now + datetime.timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %H:%M:%S")
-            
-            sheet_range = f"'{form_year}'!A1:P1000"
+            sheet_range = f"'{form_year}'!A1:M1000"
             
             try:
                 res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
@@ -287,9 +292,9 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
 
             if not existing_rows:
                 headers = [
-                    "Date From", "Date To", "Faculty Name", "Category", "Title", "Document Link", 
-                    "Department", "Timestamp", "Year", "Month", "Publication URL", 
-                    "Journal Type", "Publisher Name", "Publisher Scope", "Conference Scope", "Organizing/Conducting Body"
+                    "Faculty Name", "Department", "Category/ Research Type", "Journal Type", "Title", 
+                    "Document Link", "Date", "Publication URL", "Publisher Name", "Publisher Scope", 
+                    "Conference Scope", "Organizing/Conducting Body", "ISSN/ISBN Number"
                 ]
                 data_rows = []
             else:
@@ -308,26 +313,23 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
                 str_date_from = entry["date_from"].strftime("%Y-%m-%d") if entry["date_from"] else "Check Attachment"
                 str_date_to = entry["date_to"].strftime("%Y-%m-%d") if entry["date_to"] else str_date_from
                 
-                str_year = entry["date_from"].strftime("%Y") if entry["date_from"] else ""
-                str_month = entry["date_from"].strftime("%B") if entry["date_from"] else ""
+                duration_span = f"{str_date_from} to {str_date_to}" if entry["date_to"] else str_date_from
                 
+                # CLEAN 13-CELL RECORD PAYLOAD WITHOUT YEAR AND MONTH COLUMNS
                 new_entry_record = [
-                    str_date_from,                # Column A: Date From
-                    str_date_to,                  # Column B: Date To
-                    form_name.strip(),            # Column C: Faculty Name
-                    entry["type"],                # Column D: Category
+                    form_name.strip(),            # Column A: Faculty Name
+                    form_dept,                    # Column B: Department
+                    entry["type"],                # Column C: Category/ Research Type
+                    entry["j_type"],              # Column D: Journal Type
                     entry["title"],               # Column E: Title
                     drive_link,                   # Column F: Document Link
-                    form_dept,                    # Column G: Department
-                    t_now,                        # Column H: Timestamp
-                    str_year,                     # Column I: Year
-                    str_month,                    # Column J: Month
-                    entry["pub_url"],             # Column K: Publication URL
-                    entry["j_type"],              # Column L: Journal Type
-                    entry["p_name"],              # Column M: Publisher Name
-                    entry["p_scope"],             # Column N: Publisher Scope
-                    entry["c_scope"],             # Column O: Conference Scope
-                    entry["org_body"]             # Column P: Organizing/Conducting Body
+                    duration_span,                # Column G: Date
+                    entry["pub_url"],             # Column H: Publication URL
+                    entry["p_name"],              # Column I: Publisher Name
+                    entry["p_scope"],             # Column J: Publisher Scope
+                    entry["c_scope"],             # Column K: Conference Scope
+                    entry["org_body"],            # Column L: Organizing/Conducting Body
+                    entry["isbn_issn"]            # Column M: ISSN/ISBN Number
                 ]
                 data_rows.append(new_entry_record)
                 progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
