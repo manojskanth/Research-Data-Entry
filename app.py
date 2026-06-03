@@ -187,7 +187,6 @@ for i in range(1, 11):
     with col4:
         r_date = st.date_input(f"Date of Event", value=None, key=f"date_{i}")
         
-    # Dynamically inject specialized sub-fields inside container rows depending on category rules
     j_type = "N/A"
     p_name = "N/A"
     p_scope = "N/A"
@@ -199,7 +198,7 @@ for i in range(1, 11):
             j_type = st.selectbox(f"Journal Listing Index", JOURNAL_TYPES, key=f"jtype_{i}")
             
     elif r_type in ["Book Chapter", "Full Book"]:
-        sub_col1, sub_col2 = st.columns([4.0, 3.0, 3.0])
+        sub_col1, sub_col2, sub_col3 = st.columns([4.0, 3.0, 3.0])
         with sub_col1:
             p_name = st.text_input(f"Name of the Publisher", placeholder="Enter publishing house...", key=f"pname_{i}")
         with sub_col2:
@@ -217,97 +216,4 @@ for i in range(1, 11):
         row_data_collection.append({
             "sl_no": i,
             "type": r_type if r_type != "-- Select Entry --" else "Unspecified",
-            "title": r_title.strip() if r_title.strip() else "Untitled Entry",
-            "pub_url": r_url.strip() if r_url.strip() else "No Link Provided",
-            "date": r_date,
-            "file": r_file,
-            "j_type": j_type,
-            "p_name": p_name,
-            "p_scope": p_scope,
-            "c_scope": c_scope
-        })
-
-if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use_container_width=True):
-    if not form_name.strip():
-        st.error("Faculty Member Name field required.")
-    elif not row_data_collection:
-        st.error("Please fill out at least one item row in the matrix grid list.")
-    else:
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        try:
-            creds = get_google_credentials()
-            sheets_service = build('sheets', 'v4', credentials=creds)
-            f_id = DEPARTMENT_FOLDERS.get(form_dept, "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG")
-            
-            utc_now = datetime.datetime.utcnow()
-            t_now = (utc_now + datetime.timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %H:%M:%S")
-            
-            sheet_range = f"'{form_year}'!A1:N1000"
-            
-            try:
-                res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
-                existing_rows = res.get('values', [])
-            except Exception:
-                existing_rows = []
-
-            # Clean tracking layout tracking expanded indices up to column N
-            if not existing_rows:
-                headers = [
-                    "Date", "Faculty Name", "Category", "Title", "Document Link", "Department", 
-                    "Timestamp", "Year", "Month", "Publication URL", "Journal Type", 
-                    "Publisher Name", "Publisher Scope", "Conference Scope"
-                ]
-                data_rows = []
-            else:
-                headers = existing_rows[0]
-                data_rows = existing_rows[1:]
-
-            for idx, entry in enumerate(row_data_collection):
-                status_text.markdown(f"💾 **Processing Entry Row {entry['sl_no']}:** `{entry['title']}`...")
-                
-                if entry["file"] is not None:
-                    f_bytes = entry["file"].read()
-                    drive_link = upload_file_to_drive(f_bytes, entry["file"].name, entry["file"].type, f_id, creds)
-                else:
-                    drive_link = "No File Uploaded"
-                
-                str_date = entry["date"].strftime("%Y-%m-%d") if entry["date"] else "Check Attachment"
-                str_year = entry["date"].strftime("%Y") if entry["date"] else ""
-                str_month = entry["date"].strftime("%B") if entry["date"] else ""
-                
-                new_entry_record = [
-                    str_date,                     # Column A: Date
-                    form_name.strip(),            # Column B: Faculty Name
-                    entry["type"],                # Column C: Category
-                    entry["title"],               # Column D: Title
-                    drive_link,                   # Column E: Document Link
-                    form_dept,                    # Column F: Department
-                    t_now,                        # Column G: Timestamp
-                    str_year,                     # Column H: Year
-                    str_month,                    # Column I: Month
-                    entry["pub_url"],             # Column J: Publication URL
-                    entry["j_type"],              # Column K: Journal Type
-                    entry["p_name"],              # Column L: Publisher Name
-                    entry["p_scope"],             # Column M: Publisher Scope
-                    entry["c_scope"]              # Column N: Conference Scope
-                ]
-                data_rows.append(new_entry_record)
-                progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
-
-            data_rows.sort(key=get_department_sort_index)
-            final_write_payload = [headers] + data_rows
-
-            sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
-            sheets_service.spreadsheets().values().update(
-                spreadsheetId=MASTER_SHEET_ID, range=f"'{form_year}'!A1", valueInputOption="USER_ENTERED", body={'values': final_write_payload}).execute()
-
-            status_text.empty()
-            progress_bar.empty()
-            st.success(f"🎉 Successfully logged all organized entries sorted by Department layout to the master ledger!")
-            st.balloons()
-            st. those rows are perfectly safe!
-            
-        except Exception as e:
-            st.error(f"System Operational Mismatch: {str(e)}")
+            "title": r_title.strip() if
