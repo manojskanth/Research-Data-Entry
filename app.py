@@ -4,6 +4,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import io
+import os
 
 # --- 1. CORE CONFIGURATION ---
 MASTER_SHEET_ID = "15wPQ9QWydGKF1OIW1QkaeXB3msRjhwiJix4ZVyf6DxA"
@@ -106,7 +107,11 @@ st.set_page_config(page_title="Faculty Portal", page_icon="📝", layout="wide")
 if not st.session_state.authenticated:
     col_logo1, col_logo2, col_logo3 = st.columns([1.2, 1.0, 1.2])
     with col_logo2:
-        st.image("https://i.imgur.com/uVepZ0v.png", use_container_width=True)
+        # Tries to pull logo from local repository folder directory path safely
+        if os.path.exists("logo.png"):
+            st.image("logo.png", use_container_width=True)
+        else:
+            st.markdown("<h3 style='text-align: center; color: #aaa;'>🏫 St. Mary's</h3>", unsafe_allow_html=True)
         
     st.markdown("<h2 style='text-align: center; margin-top: -15px;'>🔐 St. Mary's Secure Research Gateway</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>Authorized Faculty Login Panel</p>", unsafe_allow_html=True)
@@ -140,7 +145,8 @@ if not st.session_state.authenticated:
 top_col1, top_col2, top_col3 = st.columns([1.5, 5.0, 3.5])
 
 with top_col1:
-    st.image("https://i.imgur.com/uVepZ0v.png", use_container_width=True)
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
 
 with top_col2:
     st.markdown("<h1 style='margin-bottom: 0px; padding-top: 5px;'>St. Mary's College</h1>", unsafe_allow_html=True)
@@ -356,5 +362,4 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
         except Exception as e:
             st.error(f"System Operational Mismatch: {str(e)}")
 
-# Minimalist, clean footer layout signature pinned at the bottom of the active interface
 st.markdown("<br><hr/><p style='text-align: center; font-size: 0.85em; color: #888;'>Developed by Research Committee @ St. Mary's</p>", unsafe_allow_html=True)
