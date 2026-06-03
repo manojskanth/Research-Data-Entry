@@ -21,6 +21,13 @@ ACADEMIC_YEARS = [
 RESEARCH_TYPES = [
     "FDP", "Workshop", "Conference Presentation", "Paper publication", "Book Chapter", "Full Book"
 ]
+JOURNAL_TYPES = [
+    "UGC Care listed", "Scopus", "Pubmed", "Peer Reviewed", "Other"
+]
+SCOPES = [
+    "National", "International"
+]
+
 DEPARTMENT_FOLDERS = {
     "English & Languages": "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG",
     "Social Sciences & Humanities": "1m0xEcv-WKQr8CWfHlZ5AuCWIFXAm1H5g",
@@ -82,7 +89,6 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
     except Exception:
         return "Drive Pending"
 
-# Master sorting algorithm: groups matching the exact order of the DEPARTMENTS list configuration
 def get_department_sort_index(row_data):
     if len(row_data) > 5 and row_data[5] in DEPARTMENTS:
         return DEPARTMENTS.index(row_data[5])
@@ -166,31 +172,46 @@ with col_d:
 st.markdown("---")
 st.subheader("📊 Research Matrix Log (Up to 10 Rows)")
 
-# Column layout split modified to gracefully blend the publication link text boxes
-hdr_1, hdr_2, hdr_3, hdr_4, hdr_5, hdr_6 = st.columns([0.5, 1.8, 2.5, 2.2, 1.5, 2.0])
-with hdr_1: st.markdown("**Sl No.**")
-with hdr_2: st.markdown("**Research Type**")
-with hdr_3: st.markdown("**Precise Title**")
-with hdr_4: st.markdown("**URL of Publication (Optional)**")
-with hdr_5: st.markdown("**Date of Event**")
-with hdr_6: st.markdown("**Upload Document Certificate**")
-
 row_data_collection = []
 
 for i in range(1, 11):
-    row_col1, row_col2, row_col3, row_col4, row_col5, row_col6 = st.columns([0.5, 1.8, 2.5, 2.2, 1.5, 2.0])
-    with row_col1:
-        st.markdown(f"<p style='padding-top:25px; text-align:center;'>{i}</p>", unsafe_allow_html=True)
-    with row_col2:
-        r_type = st.selectbox(f"Type-{i}", ["-- Select Entry --"] + RESEARCH_TYPES, label_visibility="collapsed")
-    with row_col3:
-        r_title = st.text_input(f"Title-{i}", placeholder="Enter title/theme text...", label_visibility="collapsed")
-    with row_col4:
-        r_url = st.text_input(f"URL-{i}", placeholder="Paste publication web link...", label_visibility="collapsed")
-    with row_col5:
-        r_date = st.date_input(f"Date-{i}", value=None, key=f"date_widget_{i}", label_visibility="collapsed")
-    with row_col6:
-        r_file = st.file_uploader(f"File-{i}", key=f"file_widget_{i}", label_visibility="collapsed")
+    st.markdown(f"#### 🔘 Entry Row Record #{i}")
+    
+    col1, col2, col3, col4 = st.columns([1.5, 3.0, 3.0, 2.5])
+    with col1:
+        r_type = st.selectbox(f"Research Type", ["-- Select Entry --"] + RESEARCH_TYPES, key=f"type_{i}")
+    with col2:
+        r_title = st.text_input(f"Precise Title / Theme text", placeholder="Enter theme text...", key=f"title_{i}")
+    with col3:
+        r_url = st.text_input(f"URL of Publication (Optional)", placeholder="Paste web link if available...", key=f"url_{i}")
+    with col4:
+        r_date = st.date_input(f"Date of Event", value=None, key=f"date_{i}")
+        
+    # Dynamically inject specialized sub-fields inside container rows depending on category rules
+    j_type = "N/A"
+    p_name = "N/A"
+    p_scope = "N/A"
+    c_scope = "N/A"
+    
+    if r_type == "Paper publication":
+        sub_col1, sub_col2 = st.columns([2.0, 8.0])
+        with sub_col1:
+            j_type = st.selectbox(f"Journal Listing Index", JOURNAL_TYPES, key=f"jtype_{i}")
+            
+    elif r_type in ["Book Chapter", "Full Book"]:
+        sub_col1, sub_col2 = st.columns([4.0, 3.0, 3.0])
+        with sub_col1:
+            p_name = st.text_input(f"Name of the Publisher", placeholder="Enter publishing house...", key=f"pname_{i}")
+        with sub_col2:
+            p_scope = st.selectbox(f"Publisher Classification", SCOPES, key=f"pscope_{i}")
+            
+    elif r_type == "Conference Presentation":
+        sub_col1, sub_col2 = st.columns([2.0, 8.0])
+        with sub_col1:
+            c_scope = st.selectbox(f"Conference Classification", SCOPES, key=f"cscope_{i}")
+            
+    r_file = st.file_uploader(f"Upload Document Certificate Support Asset", key=f"file_{i}")
+    st.markdown("<hr style='margin:10px 0px; border-top: 1px dashed #ddd;' />", unsafe_allow_html=True)
         
     if r_type != "-- Select Entry --" or r_title.strip():
         row_data_collection.append({
@@ -199,12 +220,14 @@ for i in range(1, 11):
             "title": r_title.strip() if r_title.strip() else "Untitled Entry",
             "pub_url": r_url.strip() if r_url.strip() else "No Link Provided",
             "date": r_date,
-            "file": r_file
+            "file": r_file,
+            "j_type": j_type,
+            "p_name": p_name,
+            "p_scope": p_scope,
+            "c_scope": c_scope
         })
 
-st.markdown("---")
-
-if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
+if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use_container_width=True):
     if not form_name.strip():
         st.error("Faculty Member Name field required.")
     elif not row_data_collection:
@@ -221,7 +244,7 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
             utc_now = datetime.datetime.utcnow()
             t_now = (utc_now + datetime.timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %H:%M:%S")
             
-            sheet_range = f"'{form_year}'!A1:K1000"
+            sheet_range = f"'{form_year}'!A1:N1000"
             
             try:
                 res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
@@ -229,9 +252,13 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
             except Exception:
                 existing_rows = []
 
-            # Added the Publication URL column header slot to the tracking array (Extends layout to Column K)
+            # Clean tracking layout tracking expanded indices up to column N
             if not existing_rows:
-                headers = ["Date", "Faculty Name", "Category", "Title", "Document Link", "Department", "Timestamp", "Year", "Month", "Publication URL"]
+                headers = [
+                    "Date", "Faculty Name", "Category", "Title", "Document Link", "Department", 
+                    "Timestamp", "Year", "Month", "Publication URL", "Journal Type", 
+                    "Publisher Name", "Publisher Scope", "Conference Scope"
+                ]
                 data_rows = []
             else:
                 headers = existing_rows[0]
@@ -260,12 +287,15 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
                     t_now,                        # Column G: Timestamp
                     str_year,                     # Column H: Year
                     str_month,                    # Column I: Month
-                    entry["pub_url"]              # Column J: Publication URL
+                    entry["pub_url"],             # Column J: Publication URL
+                    entry["j_type"],              # Column K: Journal Type
+                    entry["p_name"],              # Column L: Publisher Name
+                    entry["p_scope"],             # Column M: Publisher Scope
+                    entry["c_scope"]              # Column N: Conference Scope
                 ]
                 data_rows.append(new_entry_record)
                 progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
 
-            # Strictly orders everything matching the DEPARTMENTS sorting index hierarchy
             data_rows.sort(key=get_department_sort_index)
             final_write_payload = [headers] + data_rows
 
@@ -275,8 +305,9 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary"):
 
             status_text.empty()
             progress_bar.empty()
-            st.success(f"🎉 Successfully logged all structural matrix rows to the '{form_year}' sheet ledger!")
+            st.success(f"🎉 Successfully logged all organized entries sorted by Department layout to the master ledger!")
             st.balloons()
+            st. those rows are perfectly safe!
             
         except Exception as e:
             st.error(f"System Operational Mismatch: {str(e)}")
