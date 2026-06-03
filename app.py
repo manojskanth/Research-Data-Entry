@@ -28,22 +28,23 @@ SCOPES = [
     "National", "International"
 ]
 
+# Automated institutional faculty email-to-profile directory lookup map
+FACULTY_DIRECTORY = {
+    "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
+    "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
+    "aditijuyal@stmaryscollege.in": {"name": "Prof. Aditi Juyal", "secret_key": "aditijuyal_pass"},
+    "maithry@stmaryscollege.in": {"name": "Dr. Maithry", "secret_key": "maithry_pass"},
+    "soumya@stmaryscollege.in": {"name": "Prof. Soumya", "secret_key": "soumya_pass"},
+    "rajita@stmaryscollege.in": {"name": "Dr. Rajita", "secret_key": "rajita_pass"},
+    "manojkanth@stmaryscollege.in": {"name": "Dr. Manoj Kanth", "secret_key": "manojkanth_pass"}
+}
+
 DEPARTMENT_FOLDERS = {
     "English & Languages": "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG",
     "Social Sciences & Humanities": "1m0xEcv-WKQr8CWfHlZ5AuCWIFXAm1H5g",
     "Sciences": "1u_KRBhdZhcWQ55CyVI0v042bIpC5FQfs",
     "Management": "1VG3xY_SmhqmQ9BvSh6KvDXOptO3kHhsj",
     "Commerce": "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"
-}
-
-USER_PASSWORD_KEYS = {
-    "saikiran@stmaryscollege.in": "saikiran_pass",
-    "sangeetha@stmaryscollege.in": "sangeetha_pass",
-    "aditijuyal@stmaryscollege.in": "aditijuyal_pass",
-    "maithry@stmaryscollege.in": "maithry_pass",
-    "soumya@stmaryscollege.in": "soumya_pass",
-    "rajita@stmaryscollege.in": "rajita_pass",
-    "manojkanth@stmaryscollege.in": "manojkanth_pass"
 }
 
 # --- 2. BACKEND GOOGLE INTEGRATION ---
@@ -90,8 +91,8 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
         return "Drive Pending"
 
 def get_department_sort_index(row_data):
-    if len(row_data) > 5 and row_data[5] in DEPARTMENTS:
-        return DEPARTMENTS.index(row_data[5])
+    if len(row_data) > 6 and row_data[6] in DEPARTMENTS:
+        return DEPARTMENTS.index(row_data[6])
     return 99
 
 # --- 3. SESSION STATE INITIALIZATION ---
@@ -113,8 +114,8 @@ if not st.session_state.authenticated:
         input_password = st.text_input("Password", type="password", placeholder="••••••••")
         
         if st.button("Sign In", type="primary", use_container_width=True):
-            if input_email in USER_PASSWORD_KEYS:
-                secret_key_name = USER_PASSWORD_KEYS[input_email]
+            if input_email in FACULTY_DIRECTORY:
+                secret_key_name = FACULTY_DIRECTORY[input_email]["secret_key"]
                 try:
                     correct_password = st.secrets[secret_key_name]
                     if input_password == correct_password:
@@ -151,7 +152,7 @@ with st.sidebar:
                 st.error("Passwords do not match.")
             else:
                 st.success("Copy this string and share it with the administrator:")
-                st.code(f'{USER_PASSWORD_KEYS[st.session_state.logged_email]} = "{new_pass.strip()}"')
+                st.code(f'{FACULTY_DIRECTORY[st.session_state.logged_email]["secret_key"]} = "{new_pass.strip()}"')
 
 st.title("🏢 St. Mary's Manual Research Logging Desk")
 st.markdown("Fill out your entry matrix fields and submit them cleanly to the Master Sheet ledger.")
@@ -159,15 +160,20 @@ st.markdown("Fill out your entry matrix fields and submit them cleanly to the Ma
 st.markdown("---")
 st.subheader("👤 Faculty Member Profile")
 
+# Look up current user's profile metadata dynamically
+current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
+
 col_a, col_b, col_c, col_d = st.columns(4)
 with col_a:
     st.text_input("Faculty Email Address", value=st.session_state.logged_email, disabled=True)
 with col_b:
-    form_name = st.text_input("Faculty Member Name", placeholder="Your full name...")
+    # Auto-fills the name based on the authenticated email address
+    form_name = st.text_input("Faculty Member Name", value=current_faculty_name, disabled=True)
 with col_c:
-    form_dept = st.selectbox("Select Department", DEPARTMENTS)
+    # Uses a blank option first to force active faculty interaction
+    form_dept = st.selectbox("Select Department", ["-- Select Department --"] + DEPARTMENTS)
 with col_d:
-    form_year = st.selectbox("Select Academic Year", ACADEMIC_YEARS)
+    form_year = st.selectbox("Select Academic Year", ["-- Select Academic Year --"] + ACADEMIC_YEARS)
 
 st.markdown("---")
 st.subheader("📊 Research Matrix Log (Up to 10 Rows)")
@@ -177,37 +183,59 @@ row_data_collection = []
 for i in range(1, 11):
     st.markdown(f"#### 🔘 Entry Row Record #{i}")
     
-    col1, col2, col3, col4 = st.columns([1.5, 3.0, 3.0, 2.5])
+    col1, col2, col3 = st.columns([2.0, 5.0, 5.0])
     with col1:
         r_type = st.selectbox(f"Research Type", ["-- Select Entry --"] + RESEARCH_TYPES, key=f"type_{i}")
     with col2:
         r_title = st.text_input(f"Precise Title / Theme text", placeholder="Enter theme text...", key=f"title_{i}")
     with col3:
         r_url = st.text_input(f"URL of Publication (Optional)", placeholder="Paste web link if available...", key=f"url_{i}")
-    with col4:
-        r_date = st.date_input(f"Date of Event", value=None, key=f"date_{i}")
         
     j_type = "N/A"
     p_name = "N/A"
     p_scope = "N/A"
     c_scope = "N/A"
+    org_body = "N/A"
     
-    if r_type == "Paper publication":
-        sub_col1, sub_col2 = st.columns([2.0, 8.0])
+    # Conditional Layout rendering matching your specific category parameters
+    if r_type in ["FDP", "Workshop"]:
+        sub_col1, sub_col2, sub_col3 = st.columns([3.0, 3.0, 6.0])
         with sub_col1:
-            j_type = st.selectbox(f"Journal Listing Index", JOURNAL_TYPES, key=f"jtype_{i}")
-            
-    elif r_type in ["Book Chapter", "Full Book"]:
-        sub_col1, sub_col2, sub_col3 = st.columns([4.0, 3.0, 3.0])
-        with sub_col1:
-            p_name = st.text_input(f"Name of the Publisher", placeholder="Enter publishing house...", key=f"pname_{i}")
+            r_date_from = st.date_input(f"Date From", value=None, key=f"date_from_{i}")
         with sub_col2:
-            p_scope = st.selectbox(f"Publisher Classification", SCOPES, key=f"pscope_{i}")
+            r_date_to = st.date_input(f"Date To", value=None, key=f"date_to_{i}")
+        with sub_col3:
+            org_body = st.text_input(f"Organised By", placeholder="Enter hosting college/organization name...", key=f"org_{i}")
             
     elif r_type == "Conference Presentation":
-        sub_col1, sub_col2 = st.columns([2.0, 8.0])
+        sub_col1, sub_col2, sub_col3, sub_col4 = st.columns([2.5, 2.5, 3.5, 3.5])
         with sub_col1:
+            r_date_from = st.date_input(f"Date From", value=None, key=f"date_from_{i}")
+        with sub_col2:
+            r_date_to = st.date_input(f"Date To", value=None, key=f"date_to_{i}")
+        with sub_col3:
             c_scope = st.selectbox(f"Conference Classification", SCOPES, key=f"cscope_{i}")
+        with sub_col4:
+            org_body = st.text_input(f"Conducted By", placeholder="Enter university/body name...", key=f"cond_{i}")
+            
+    else:
+        # Defaults for items like publications or books that only span a single execution date points
+        sub_col1 = st.columns(1)[0]
+        with sub_col1:
+            r_date_from = st.date_input(f"Date of Event", value=None, key=f"date_single_{i}")
+        r_date_to = None
+        
+        if r_type == "Paper publication":
+            sub_col_pub = st.columns(1)[0]
+            with sub_col_pub:
+                j_type = st.selectbox(f"Journal Listing Index", JOURNAL_TYPES, key=f"jtype_{i}")
+                
+        elif r_type in ["Book Chapter", "Full Book"]:
+            sub_col_bk1, sub_col_bk2 = st.columns([6.0, 4.0])
+            with sub_col_bk1:
+                p_name = st.text_input(f"Name of the Publisher", placeholder="Enter publishing house...", key=f"pname_{i}")
+            with sub_col_bk2:
+                p_scope = st.selectbox(f"Publisher Classification", SCOPES, key=f"pscope_{i}")
             
     r_file = st.file_uploader(f"Upload Document Certificate Support Asset", key=f"file_{i}")
     st.markdown("<hr style='margin:10px 0px; border-top: 1px dashed #ddd;' />", unsafe_allow_html=True)
@@ -218,19 +246,24 @@ for i in range(1, 11):
             "type": r_type if r_type != "-- Select Entry --" else "Unspecified",
             "title": r_title.strip() if r_title.strip() else "Untitled Entry",
             "pub_url": r_url.strip() if r_url.strip() else "No Link Provided",
-            "date": r_date,
+            "date_from": r_date_from,
+            "date_to": r_date_to,
             "file": r_file,
             "j_type": j_type,
             "p_name": p_name,
             "p_scope": p_scope,
-            "c_scope": c_scope
+            "c_scope": c_scope,
+            "org_body": org_body.strip() if (isinstance(org_body, str) and org_body.strip()) else org_body
         })
 
 st.markdown("---")
 
 if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use_container_width=True):
-    if not form_name.strip():
-        st.error("Faculty Member Name field required.")
+    # Strict validation flags to ensure faculty provide explicit department and year choices
+    if form_dept == "-- Select Department --":
+        st.error("Form Validation Error: Please select your explicit Department before submitting.")
+    elif form_year == "-- Select Academic Year --":
+        st.error("Form Validation Error: Please select the explicit Academic Year before submitting.")
     elif not row_data_collection:
         st.error("Please fill out at least one item row in the matrix grid list.")
     else:
@@ -245,7 +278,7 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
             utc_now = datetime.datetime.utcnow()
             t_now = (utc_now + datetime.timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %H:%M:%S")
             
-            sheet_range = f"'{form_year}'!A1:N1000"
+            sheet_range = f"'{form_year}'!A1:P1000"
             
             try:
                 res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=sheet_range).execute()
@@ -255,9 +288,9 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
 
             if not existing_rows:
                 headers = [
-                    "Date", "Faculty Name", "Category", "Title", "Document Link", "Department", 
-                    "Timestamp", "Year", "Month", "Publication URL", "Journal Type", 
-                    "Publisher Name", "Publisher Scope", "Conference Scope"
+                    "Date From", "Date To", "Faculty Name", "Category", "Title", "Document Link", 
+                    "Department", "Timestamp", "Year", "Month", "Publication URL", 
+                    "Journal Type", "Publisher Name", "Publisher Scope", "Conference Scope", "Organizing/Conducting Body"
                 ]
                 data_rows = []
             else:
@@ -273,25 +306,30 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
                 else:
                     drive_link = "No File Uploaded"
                 
-                str_date = entry["date"].strftime("%Y-%m-%d") if entry["date"] else "Check Attachment"
-                str_year = entry["date"].strftime("%Y") if entry["date"] else ""
-                str_month = entry["date"].strftime("%B") if entry["date"] else ""
+                # Format start and end date text representations accurately
+                str_date_from = entry["date_from"].strftime("%Y-%m-%d") if entry["date_from"] else "Check Attachment"
+                str_date_to = entry["date_to"].strftime("%Y-%m-%d") if entry["date_to"] else str_date_from
+                
+                str_year = entry["date_from"].strftime("%Y") if entry["date_from"] else ""
+                str_month = entry["date_from"].strftime("%B") if entry["date_from"] else ""
                 
                 new_entry_record = [
-                    str_date,                     # Column A: Date
-                    form_name.strip(),            # Column B: Faculty Name
-                    entry["type"],                # Column C: Category
-                    entry["title"],               # Column D: Title
-                    drive_link,                   # Column E: Document Link
-                    form_dept,                    # Column F: Department
-                    t_now,                        # Column G: Timestamp
-                    str_year,                     # Column H: Year
-                    str_month,                    # Column I: Month
-                    entry["pub_url"],             # Column J: Publication URL
-                    entry["j_type"],              # Column K: Journal Type
-                    entry["p_name"],              # Column L: Publisher Name
-                    entry["p_scope"],             # Column M: Publisher Scope
-                    entry["c_scope"]              # Column N: Conference Scope
+                    str_date_from,                # Column A: Date From
+                    str_date_to,                  # Column B: Date To
+                    form_name.strip(),            # Column C: Faculty Name
+                    entry["type"],                # Column D: Category
+                    entry["title"],               # Column E: Title
+                    drive_link,                   # Column F: Document Link
+                    form_dept,                    # Column G: Department
+                    t_now,                        # Column H: Timestamp
+                    str_year,                     # Column I: Year
+                    str_month,                    # Column J: Month
+                    entry["pub_url"],             # Column K: Publication URL
+                    entry["j_type"],              # Column L: Journal Type
+                    entry["p_name"],              # Column M: Publisher Name
+                    entry["p_scope"],             # Column N: Publisher Scope
+                    entry["c_scope"],             # Column O: Conference Scope
+                    entry["org_body"]             # Column P: Organizing/Conducting Body
                 ]
                 data_rows.append(new_entry_record)
                 progress_bar.progress(int((idx + 1) / len(row_data_collection) * 100))
@@ -305,7 +343,7 @@ if st.button("🚀 Process Batch & Commit Records to Sheet", type="primary", use
 
             status_text.empty()
             progress_bar.empty()
-            st.success(f"🎉 Successfully logged all organized entries sorted by Department layout to the master ledger!")
+            st.success(f"🎉 Successfully logged all structured records cleanly to the master ledger spreadsheet database!")
             st.balloons()
             
         except Exception as e:
