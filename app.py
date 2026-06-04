@@ -39,7 +39,6 @@ FACULTY_DIRECTORY = {
     "manojkanth@stmaryscollege.in": {"name": "Dr. Manoj Kanth", "secret_key": "manojkanth_pass"},
     "swathi@stmaryscollege.in": {"name": "Dr. Swathi", "secret_key": "swathi_pass"}
 }
-}
 
 DEPARTMENT_FOLDERS = {
     "English & Languages": "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG",
