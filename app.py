@@ -34,9 +34,11 @@ FACULTY_DIRECTORY = {
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
     "aditijuyal@stmaryscollege.in": {"name": "Prof. Aditi Juyal", "secret_key": "aditijuyal_pass"},
     "maithry@stmaryscollege.in": {"name": "Dr. Maithry", "secret_key": "maithry_pass"},
-    "soumya@stmaryscollege.in": {"name": "Prof. Soumya", "secret_key": "soumya_pass"},
+    "soumya@stmaryscollege.in": {"name": "Dr. Soumya", "secret_key": "soumya_pass"},
     "rajita@stmaryscollege.in": {"name": "Dr. Rajita", "secret_key": "rajita_pass"},
-    "manojkanth@stmaryscollege.in": {"name": "Dr. Manoj Kanth", "secret_key": "manojkanth_pass"}
+    "manojkanth@stmaryscollege.in": {"name": "Dr. Manoj Kanth", "secret_key": "manojkanth_pass"},
+    "swathi@stmaryscollege.in": {"name": "Dr. Swathi", "secret_key": "swathi_pass"}
+}
 }
 
 DEPARTMENT_FOLDERS = {
