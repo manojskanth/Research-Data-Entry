@@ -138,7 +138,7 @@ if not st.session_state.authenticated:
             else:
                 st.error("Access Denied: This email address is not authorized.")
                 
-    st.markdown("<br><p style='text-align: center; font-size: 1.05em; font-weight: bold; color: #555;'>Developed by Research Committee & St. Mary's</p>", unsafe_allow_html=True)
+    st.markdown("<br><p style='text-align: center; font-size: 1.05em; font-weight: bold; color: #555;'>Developed by Research Committee @ St. Mary's</p>", unsafe_allow_html=True)
     st.stop()
 
 # --- INTERFACE ROUTING: APPLICATION WORKSPACE ---
