@@ -119,10 +119,10 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     sheets_service = build('sheets', 'v4', credentials=creds)
     
     sections = [
-        {"title": "I. Research Publications", "sheet": "Research_Database", "filter": ["Paper publication", "Book Chapter", "Full Book"], "desc": "Include journal articles, book chapters, or conference proceedings. Please specify indexing."},
+        {"title": "I. Research Publications", "sheet": "Research_Database", "filter": ["Paper publication", "Book Chapter", "Full Book"], "desc": "Include journal articles, book chapters, or conference proceedings. Please specify indexing (e.g., Web of Science, Scopus, Peer-Reviewed)."},
         {"title": "II. Faculty Development Programs (FDPs) & Workshops", "sheet": "Research_Database", "filter": ["FDP", "Workshop"], "desc": "Include training programs attended or successfully completed."},
         {"title": "III. Professional Certifications & Training", "sheet": "Faculty_Achievements", "filter": ["Certification/Course"], "desc": "Include NPTEL courses, Innovation Ambassador training, or other professional certifications."},
-        {"title": "IV. Paper Presentations & Resource Person Roles", "sheet": "Faculty_Achievements", "filter": ["Presentation/Resource Person"], "desc": "Include papers presented at conferences, acting as a Judge, Guest Speaker, or Facilitator."},
+        {"title": "IV. Paper Presentations & Resource Person Roles", "sheet": "Faculty_Achievements", "filter": ["Presentation/Resource Person"], "desc": "Include papers presented at conferences, acting as a Judge, Guest Speaker, or Facilitator for colloquiums."},
         {"title": "V. Research Milestones (For Doctoral Scholars)", "sheet": "Faculty_Achievements", "filter": ["Doctoral Milestone"], "desc": "Include milestones such as Synopsis Seminars, Pre-Ph.D. exams, or Thesis submission."},
         {"title": "VI. Awards, Honors, & Recognitions", "sheet": "Faculty_Achievements", "filter": ["Award/Honor"], "desc": "Include any special awards, titles, or professional recognitions."},
         {"title": "VII. Departmental & Institutional Contribution", "sheet": "Departmental_Student_Activities", "filter": ["Institutional Contribution"], "desc": "Include organized events, Institutional Social Responsibility (ISR) activities, or specialized student activities."}
@@ -272,7 +272,7 @@ with tab_submit:
                     st.success("🎉 Structured Research Entry compiled into database ledger completely!")
                     
             else:
-                # DYNAMIC FIELD LOGIC MAPS SUB-CATEGORIES DIRECTLY TO CHOSEN CATEGORIES
+                # ROUTING TO THE PROPER SUB-TAB SHEETS
                 target_sheet = "Faculty_Achievements" if "Faculty Profiles" in classification else "Departmental_Student_Activities"
                 
                 if target_sheet == "Faculty_Achievements":
@@ -284,26 +284,32 @@ with tab_submit:
                     ])
                 else:
                     specific_category = "Institutional Contribution"
-                    st.info("🎯 **Target Core Section:** VII. Departmental & Institutional Contribution")
 
-                # DYNAMIC REFERENCE BLOCK FOR GUIDING USER STRUCTURES
+                # -------------------------------------------------------------
+                # 🎯 STATIC INDEPENDENT SELECTION CHECKS FOR THE FORMAT REFERENCE LABELS
+                # -------------------------------------------------------------
                 st.markdown("### 📝 Required Formatting Helper")
                 
                 if specific_category == "Certification/Course":
-                    st.warning("**Expected Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].`")
-                    st.info("**Example:** `Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically \"Mastering Research Reviews and Meta-Analysis\"`")
+                    st.warning("**Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].`")[cite: 1]
+                    st.info("**Example:** `Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically \"Mastering Research Reviews and Meta-Analysis\"`")[cite: 1]
+                
                 elif specific_category == "Presentation/Resource Person":
-                    st.warning("**Expected Format:** `[Name], [Role: e.g., Presenter/Judge/Facilitator], \"[Topic/Title],\" [Event Name/Department], [Date].`")
-                    st.info("**Example:** `Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return`")
+                    st.warning("**Format:** `[Name], [Role: e.g., Presenter/Judge/Facilitator], \"[Topic/Title],\" [Event Name/Department], [Date].`")[cite: 1]
+                    st.info("**Example:** `Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return`")[cite: 1]
+                
                 elif specific_category == "Doctoral Milestone":
-                    st.warning("**Expected Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
-                    st.info("**Example:** `Ms. Shanti has successfully completed her PHD thesis on...`")
+                    st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")[cite: 1]
+                    st.info("**Example:** `Ms. Shanti has successfully completed her PHD thesis onn`")[cite: 1]
+                
                 elif specific_category == "Award/Honor":
-                    st.warning("**Expected Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")
-                    st.info("**Example:** `Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the \"Foundation Level\" by the Ministry of Education`")
+                    st.warning("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")[cite: 1]
+                    st.info("**Example:** `Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the \"Foundation Level\" by the Ministry of Education`")[cite: 1]
+                
                 elif specific_category == "Institutional Contribution":
-                    st.warning("**Expected Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")
-                    st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")
+                    st.warning("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")[cite: 1]
+                    st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")[cite: 1]
+                # -------------------------------------------------------------
 
                 narrative_input = st.text_area("Enter Achievement Narrative Text Statement String", placeholder="Write your paragraph matching the sample pattern display block above...")
                 
