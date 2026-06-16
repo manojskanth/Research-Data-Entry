@@ -257,7 +257,7 @@ for i in range(1, 11):
         sub_col1, sub_col2, sub_col3, sub_col4 = st.columns([2.5, 2.5, 3.5, 3.5])
         with sub_col1:
             r_date_from = st.date_input(f"Date From", value=None, key=f"date_from_{i}")
-        with sub_col2:
+        with col2:
             r_date_to = st.date_input(f"Date To", value=None, key=f"date_to_{i}")
         with sub_col3:
             c_scope = st.selectbox(f"Conference Classification", SCOPES, key=f"cscope_{i}")
@@ -292,7 +292,8 @@ for i in range(1, 11):
                 p_name = st.text_input(f"Name of the Publisher", placeholder="Enter publishing house...", key=f"pname_{i}")
             with sub_col_bk2:
                 p_scope = st.selectbox(f"Publisher Classification", SCOPES, key=f"pscope_{i}")
-            with sub_col_bk3 = st.text_input(f"ISBN Number", placeholder="Enter ISBN code...", key=f"isbn_{i}")
+            with sub_col_bk3:
+                isbn_issn = st.text_input(f"ISBN Number", placeholder="Enter ISBN code...", key=f"isbn_{i}")
             
     r_file = st.file_uploader(f"Upload Document Certificate Support Asset", key=f"file_{i}")
     st.markdown("<hr style='margin:10px 0px; border-top: 1px dashed #ddd;' />", unsafe_allow_html=True)
