@@ -33,7 +33,7 @@ SCOPES = [
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
-    "aditijuyal@stmaryscollege.in": {"name": "Prof. Aditi Juyal", "secret_key": "aditijuyal_pass"},
+    "aditijuyal@stmaryscollege.in": {"name": "Ms. Aditi Juyal", "secret_key": "aditijuyal_pass"},
     "maithry@stmaryscollege.in": {"name": "Dr. Maithry", "secret_key": "maithry_pass"},
     "soumya@stmaryscollege.in": {"name": "Dr. Soumya", "secret_key": "soumya_pass"},
     "rajita@stmaryscollege.in": {"name": "Dr. Rajita", "secret_key": "rajita_pass"},
@@ -44,7 +44,7 @@ FACULTY_DIRECTORY = {
     "padmaleela@stmaryscollege.in": {"name": "Ms. Padmaleela", "secret_key": "padmaleela_pass"},
     "nsrinath@stmarycollege.in": {"name": "Dr. Srinath Naganathan", "secret_key": "nsrinath_pass"},
     "sowjanya@stmaryscollege.in": {"name": "Ms. D. Sowjanya", "secret_key": "sowjanya_pass"},
-    "sandhyarani@stmaryscollege.in": {"name": "Ms. A. Sandhya Rani", "secret_key": "sandhyarani_pass"},
+    "sandhyarani@stmaryscollege.in": {"name": "Ms. Sandhya Rani", "secret_key": "sandhyarani_pass"},
     "ragasudha@stmaryscollege.in": {"name": "Ms. Raga Sudha Jonnada", "secret_key": "ragasudha_pass"},
     "rajyalakshmi@stmaryscollege.in": {"name": "Ms. Rajalakshmi", "secret_key": "rajyalakshmi_pass"},
     "mahanta@stmaryscollege.in": {"name": "Mr. Mahanta Chauhan", "secret_key": "mahanta_pass"},
