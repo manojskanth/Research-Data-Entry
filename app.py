@@ -28,7 +28,6 @@ DEPARTMENT_FOLDERS = {
     "Commerce": "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"
 }
 
-# Complete, centralized registry tracking all 38 institutional faculty login profiles
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
@@ -200,7 +199,6 @@ if not st.session_state.authenticated:
         if st.button("Sign In", type="primary", use_container_width=True):
             if input_email in FACULTY_DIRECTORY:
                 secret_key_name = FACULTY_DIRECTORY[input_email]["secret_key"]
-                # Dynamic fallback verification matching standard lowercase profile signature checks
                 correct_password = st.secrets.get(secret_key_name, "welcome@2026")
                 if input_password == correct_password:
                     st.session_state.authenticated = True
@@ -209,7 +207,7 @@ if not st.session_state.authenticated:
                 else:
                     st.error("Invalid credentials entry.")
             else:
-                st.error("Email layout address not authorized inside internal system profile bounds.")
+                st.error("Email address not authorized inside profile system.")
     st.stop()
 
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
@@ -274,20 +272,54 @@ with tab_submit:
                     st.success("🎉 Structured Research Entry compiled into database ledger completely!")
                     
             else:
+                # DYNAMIC FIELD LOGIC MAPS SUB-CATEGORIES DIRECTLY TO CHOSEN CATEGORIES
                 target_sheet = "Faculty_Achievements" if "Faculty Profiles" in classification else "Departmental_Student_Activities"
-                specific_category = st.selectbox("Sub-Category Type", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"] if target_sheet == "Faculty_Achievements" else ["Institutional Contribution"])
-                narrative_input = st.text_area("Enter Achievement Narrative Text Statement String")
+                
+                if target_sheet == "Faculty_Achievements":
+                    specific_category = st.selectbox("Sub-Category Type", [
+                        "Certification/Course", 
+                        "Presentation/Resource Person", 
+                        "Doctoral Milestone", 
+                        "Award/Honor"
+                    ])
+                else:
+                    specific_category = "Institutional Contribution"
+                    st.info("🎯 **Target Core Section:** VII. Departmental & Institutional Contribution")
+
+                # DYNAMIC REFERENCE BLOCK FOR GUIDING USER STRUCTURES
+                st.markdown("### 📝 Required Formatting Helper")
+                
+                if specific_category == "Certification/Course":
+                    st.warning("**Expected Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].`")
+                    st.info("**Example:** `Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically \"Mastering Research Reviews and Meta-Analysis\"`")
+                elif specific_category == "Presentation/Resource Person":
+                    st.warning("**Expected Format:** `[Name], [Role: e.g., Presenter/Judge/Facilitator], \"[Topic/Title],\" [Event Name/Department], [Date].`")
+                    st.info("**Example:** `Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return`")
+                elif specific_category == "Doctoral Milestone":
+                    st.warning("**Expected Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
+                    st.info("**Example:** `Ms. Shanti has successfully completed her PHD thesis on...`")
+                elif specific_category == "Award/Honor":
+                    st.warning("**Expected Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")
+                    st.info("**Example:** `Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the \"Foundation Level\" by the Ministry of Education`")
+                elif specific_category == "Institutional Contribution":
+                    st.warning("**Expected Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")
+                    st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")
+
+                narrative_input = st.text_area("Enter Achievement Narrative Text Statement String", placeholder="Write your paragraph matching the sample pattern display block above...")
                 
                 submit_log = st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary")
                 if submit_log:
-                    creds = get_google_credentials()
-                    drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
-                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input, current_faculty_name, drive_link]
-                    build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                        spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
-                    ).execute()
-                    st.success("🎉 Narrative entry saved cleanly!")
+                    if not narrative_input.strip():
+                        st.error("Input Error: The achievement narrative text statement block cannot be left empty.")
+                    else:
+                        creds = get_google_credentials()
+                        drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
+                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
+                        build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
+                            spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
+                        ).execute()
+                        st.success(f"🎉 Achievement string appended to the `{target_sheet}` database ledger!")
 
 with tab_document:
     st.subheader("Central HR Document Engine Dashboard Workspace")
