@@ -5,6 +5,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import io
 import os
+import json
 
 # --- 1. CORE CONFIGURATION ---
 MASTER_SHEET_ID = "15wPQ9QWydGKF1OIW1QkaeXB3msRjhwiJix4ZVyf6DxA"
@@ -83,11 +84,17 @@ DEPARTMENT_FOLDERS = {
 
 # --- 2. BACKEND GOOGLE INTEGRATION ---
 def get_google_credentials():
-    # Direct extraction routing pointing directly to the local JSON file asset workspace
     json_path = "credentials.json"
     if os.path.exists(json_path):
-        return service_account.Credentials.from_service_account_file(
-            json_path, 
+        with open(json_path, "r") as f:
+            info_matrix = json.load(f)
+            
+        # Replaces text-escaped breaks with literal markers to clear signature alignment checks
+        if "private_key" in info_matrix:
+            info_matrix["private_key"] = info_matrix["private_key"].replace("\\n", "\n")
+            
+        return service_account.Credentials.from_service_account_info(
+            info_matrix, 
             scopes=[
                 "https://www.googleapis.com/auth/spreadsheets", 
                 "https://www.googleapis.com/auth/drive.file", 
@@ -146,7 +153,7 @@ if not st.session_state.authenticated:
             if input_email in FACULTY_DIRECTORY:
                 secret_key_name = FACULTY_DIRECTORY[input_email]["secret_key"]
                 try:
-                    # Pulls configuration overrides from Streamlit Dashboard Secrets, fallback to 'welcome@2026'
+                    # Authenticates via dashboard keys, fallback natively to lowercase welcome@2026
                     correct_password = st.secrets.get(secret_key_name, "welcome@2026")
                     if input_password == correct_password:
                         st.session_state.authenticated = True
@@ -285,8 +292,7 @@ for i in range(1, 11):
                 p_name = st.text_input(f"Name of the Publisher", placeholder="Enter publishing house...", key=f"pname_{i}")
             with sub_col_bk2:
                 p_scope = st.selectbox(f"Publisher Classification", SCOPES, key=f"pscope_{i}")
-            with sub_col_bk3:
-                isbn_issn = st.text_input(f"ISBN Number", placeholder="Enter ISBN code...", key=f"isbn_{i}")
+            with sub_col_bk3 = st.text_input(f"ISBN Number", placeholder="Enter ISBN code...", key=f"isbn_{i}")
             
     r_file = st.file_uploader(f"Upload Document Certificate Support Asset", key=f"file_{i}")
     st.markdown("<hr style='margin:10px 0px; border-top: 1px dashed #ddd;' />", unsafe_allow_html=True)
