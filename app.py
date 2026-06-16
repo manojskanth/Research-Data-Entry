@@ -229,6 +229,46 @@ with tab_submit:
     ])
     
     if classification != "-- Select Sub-Ledger Direction --":
+        # Global selection track parameters initialized outside the structural form boundary
+        target_sheet = "Faculty_Achievements" if "Faculty Profiles" in classification else "Departmental_Student_Activities"
+        specific_category = "Institutional Contribution"
+        
+        if "Faculty Profiles" in classification:
+            specific_category = st.selectbox("Sub-Category Type", [
+                "Certification/Course", 
+                "Presentation/Resource Person", 
+                "Doctoral Milestone", 
+                "Award/Honor"
+            ])
+
+        # -------------------------------------------------------------
+        # 🎯 FIXED: Guidance containers remain above the form to prevent structural layout breaks
+        # -------------------------------------------------------------
+        if "Research Database" not in classification:
+            st.markdown("### 📝 Required Formatting Helper")
+            
+            if specific_category == "Certification/Course":
+                st.warning("**Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].`")
+                st.info("**Example:** `Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically \"Mastering Research Reviews and Meta-Analysis\"`")
+            
+            elif specific_category == "Presentation/Resource Person":
+                st.warning("**Format:** `[Name], [Role: e.g., Presenter/Judge/Facilitator], \"[Topic/Title],\" [Event Name/Department], [Date].`")
+                st.info("**Example:** `Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return`")
+            
+            elif specific_category == "Doctoral Milestone":
+                st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
+                st.info("**Example:** `Ms. Shanti has successfully completed her PHD thesis onn`")
+            
+            elif specific_category == "Award/Honor":
+                st.warning("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")
+                st.info("**Example:** `Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the \"Foundation Level\" by the Ministry of Education`")
+            
+            elif specific_category == "Institutional Contribution":
+                st.warning("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")
+                st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")
+        # -------------------------------------------------------------
+
+        # Clean, static form container layout block execution
         with st.form("achievement_universal_form", clear_on_submit=True):
             uploaded_file = st.file_uploader("Upload Supporting Verification Document")
             
@@ -272,45 +312,6 @@ with tab_submit:
                     st.success("🎉 Structured Research Entry compiled into database ledger completely!")
                     
             else:
-                # ROUTING TO THE PROPER SUB-TAB SHEETS
-                target_sheet = "Faculty_Achievements" if "Faculty Profiles" in classification else "Departmental_Student_Activities"
-                
-                if target_sheet == "Faculty_Achievements":
-                    specific_category = st.selectbox("Sub-Category Type", [
-                        "Certification/Course", 
-                        "Presentation/Resource Person", 
-                        "Doctoral Milestone", 
-                        "Award/Honor"
-                    ])
-                else:
-                    specific_category = "Institutional Contribution"
-
-                # -------------------------------------------------------------
-                # 🎯 STATIC INDEPENDENT SELECTION CHECKS FOR THE FORMAT REFERENCE LABELS
-                # -------------------------------------------------------------
-                st.markdown("### 📝 Required Formatting Helper")
-                
-                if specific_category == "Certification/Course":
-                    st.warning("**Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].`")[cite: 1]
-                    st.info("**Example:** `Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically \"Mastering Research Reviews and Meta-Analysis\"`")[cite: 1]
-                
-                elif specific_category == "Presentation/Resource Person":
-                    st.warning("**Format:** `[Name], [Role: e.g., Presenter/Judge/Facilitator], \"[Topic/Title],\" [Event Name/Department], [Date].`")[cite: 1]
-                    st.info("**Example:** `Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return`")[cite: 1]
-                
-                elif specific_category == "Doctoral Milestone":
-                    st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")[cite: 1]
-                    st.info("**Example:** `Ms. Shanti has successfully completed her PHD thesis onn`")[cite: 1]
-                
-                elif specific_category == "Award/Honor":
-                    st.warning("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")[cite: 1]
-                    st.info("**Example:** `Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the \"Foundation Level\" by the Ministry of Education`")[cite: 1]
-                
-                elif specific_category == "Institutional Contribution":
-                    st.warning("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")[cite: 1]
-                    st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")[cite: 1]
-                # -------------------------------------------------------------
-
                 narrative_input = st.text_area("Enter Achievement Narrative Text Statement String", placeholder="Write your paragraph matching the sample pattern display block above...")
                 
                 submit_log = st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary")
