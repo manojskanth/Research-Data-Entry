@@ -29,22 +29,22 @@ SCOPES = [
     "National", "International"
 ]
 
-# Fully updated matrix layout tracking all 30 new additions mapped with welcome@2026 default keys
+# Comprehensive directory tracking all 38 authorized faculty profiles
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
-    "aditijuyal@stmaryscollege.in": {"name": "Ms. Aditi Juyal", "secret_key": "aditijuyal_pass"},
+    "aditijuyal@stmaryscollege.in": {"name": "Prof. Aditi Juyal", "secret_key": "aditijuyal_pass"},
     "maithry@stmaryscollege.in": {"name": "Dr. Maithry", "secret_key": "maithry_pass"},
     "soumya@stmaryscollege.in": {"name": "Dr. Soumya", "secret_key": "soumya_pass"},
     "rajita@stmaryscollege.in": {"name": "Dr. Rajita", "secret_key": "rajita_pass"},
     "manojkanth@stmaryscollege.in": {"name": "Dr. Manoj Kanth", "secret_key": "manojkanth_pass"},
     "swathi@stmaryscollege.in": {"name": "Dr. Swathi", "secret_key": "swathi_pass"},
     
-    # --- New Database Profile Inclusions ---
+    # --- Newly Appended Profiles ---
     "padmaleela@stmaryscollege.in": {"name": "Ms. Padmaleela", "secret_key": "padmaleela_pass"},
     "nsrinath@stmarycollege.in": {"name": "Dr. Srinath Naganathan", "secret_key": "nsrinath_pass"},
     "sowjanya@stmaryscollege.in": {"name": "Ms. D. Sowjanya", "secret_key": "sowjanya_pass"},
-    "sandhyarani@stmaryscollege.in": {"name": "Ms. Sandhya Rani", "secret_key": "sandhyarani_pass"},
+    "sandhyarani@stmaryscollege.in": {"name": "Ms. A. Sandhya Rani", "secret_key": "sandhyarani_pass"},
     "ragasudha@stmaryscollege.in": {"name": "Ms. Raga Sudha Jonnada", "secret_key": "ragasudha_pass"},
     "rajyalakshmi@stmaryscollege.in": {"name": "Ms. Rajalakshmi", "secret_key": "rajyalakshmi_pass"},
     "mahanta@stmaryscollege.in": {"name": "Mr. Mahanta Chauhan", "secret_key": "mahanta_pass"},
@@ -57,7 +57,7 @@ FACULTY_DIRECTORY = {
     "sriveda@stmaryscollege.in": {"name": "Ms. Sriveda Baswapoor", "secret_key": "sriveda_pass"},
     "rameshk@stmaryscollege.in": {"name": "Dr. Ramesh Kumar", "secret_key": "rameshk_pass"},
     "shivakumar@stmaryscollege.in": {"name": "Mr. Shiva Kumar Reddy", "secret_key": "shivakumar_pass"},
-    "anamika@stmaryscolkul.in": {"name": "Dr. Anamika Sukul", "secret_key": "anamika_pass"},
+    "anamika@stmaryscollege.in": {"name": "Dr. Anamika Sukul", "secret_key": "anamika_pass"},
     "arunjose@stmaryscollege.in": {"name": "Mr. Arun B Jose", "secret_key": "arunjose_pass"},
     "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
     "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
@@ -86,20 +86,18 @@ def get_google_credentials():
     g_sec = st.secrets["gcp_service_account"]
     raw_key = g_sec["private_key"]
     
-    clean_base64 = raw_key.replace("\\n", "").replace("\n", "").replace("\r", "")
-    clean_base64 = clean_base64.replace("-----BEGIN PRIVATE KEY-----", "")
-    clean_base64 = clean_base64.replace("-----END PRIVATE KEY-----", "")
-    clean_base64 = clean_base64.strip().replace(" ", "")
-    
-    chunks = [clean_base64[i:i+64] for i in range(0, len(clean_base64), 64)]
-    formatted_body = "\n".join(chunks)
-    processed_private_key = f"-----BEGIN PRIVATE KEY-----\n{formatted_body}\n-----END PRIVATE KEY-----\n"
+    # Normalizes literal string structure seamlessly to fix the operational handshake mismatch
+    clean_key = raw_key.replace("\\n", "\n")
+    if not clean_key.startswith("-----BEGIN PRIVATE KEY-----"):
+        clean_key = f"-----BEGIN PRIVATE KEY-----\n{clean_key}"
+    if not clean_key.endswith("-----END PRIVATE KEY-----\n") and not clean_key.endswith("-----END PRIVATE KEY-----"):
+        clean_key = f"{clean_key}\n-----END PRIVATE KEY-----\n"
 
     info_matrix = {
         "type": g_sec["type"],
         "project_id": g_sec["project_id"],
         "private_key_id": g_sec["private_key_id"],
-        "private_key": processed_private_key,
+        "private_key": clean_key,
         "client_email": g_sec["client_email"],
         "client_id": g_sec["client_id"],
         "auth_uri": g_sec["auth_uri"],
@@ -158,7 +156,7 @@ if not st.session_state.authenticated:
             if input_email in FACULTY_DIRECTORY:
                 secret_key_name = FACULTY_DIRECTORY[input_email]["secret_key"]
                 try:
-                    # Fallback configuration routing to standard default key if custom configuration profile is missing
+                    # Case-sensitive fallback checks checking custom keys, defaulting perfectly to lowercase welcome@2026
                     correct_password = st.secrets.get(secret_key_name, "welcome@2026")
                     if input_password == correct_password:
                         st.session_state.authenticated = True
