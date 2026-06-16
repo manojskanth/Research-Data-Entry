@@ -83,30 +83,20 @@ DEPARTMENT_FOLDERS = {
 
 # --- 2. BACKEND GOOGLE INTEGRATION ---
 def get_google_credentials():
-    g_sec = st.secrets["gcp_service_account"]
-    raw_key = g_sec["private_key"]
-    
-    # Cleans literal string formatting seamlessly to handle compact single-line definitions
-    clean_key = raw_key.replace("\\n", "\n")
-    if not clean_key.startswith("-----BEGIN PRIVATE KEY-----"):
-        clean_key = f"-----BEGIN PRIVATE KEY-----\n{clean_key}"
-    if not clean_key.endswith("-----END PRIVATE KEY-----\n") and not clean_key.endswith("-----END PRIVATE KEY-----"):
-        clean_key = f"{clean_key}\n-----END PRIVATE KEY-----\n"
-
-    info_matrix = {
-        "type": "service_account",
-        "project_id": g_sec["project_id"],
-        "private_key_id": "d0762ad00326e60e4ec48b48eb09f2e6db5c3939",
-        "private_key": clean_key,
-        "client_email": g_sec["client_email"],
-        "client_id": "104982081031377666951",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{g_sec['client_email'].replace('@', '%40')}",
-        "universe_domain": "googleapis.com"
-    }
-    return service_account.Credentials.from_service_account_info(info_matrix, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"])
+    # Direct extraction routing pointing directly to the local JSON file asset workspace
+    json_path = "credentials.json"
+    if os.path.exists(json_path):
+        return service_account.Credentials.from_service_account_file(
+            json_path, 
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets", 
+                "https://www.googleapis.com/auth/drive.file", 
+                "https://www.googleapis.com/auth/drive"
+            ]
+        )
+    else:
+        st.error("System Operational Mismatch: Critical configuration credential registry source missing (credentials.json).")
+        st.stop()
 
 def upload_file_to_drive(file_bytes, file_name, mime_type, target_id, creds):
     try:
@@ -156,7 +146,7 @@ if not st.session_state.authenticated:
             if input_email in FACULTY_DIRECTORY:
                 secret_key_name = FACULTY_DIRECTORY[input_email]["secret_key"]
                 try:
-                    # Case-sensitive system checks pulling dynamic values, using uniform lowercase "welcome@2026"
+                    # Pulls configuration overrides from Streamlit Dashboard Secrets, fallback to 'welcome@2026'
                     correct_password = st.secrets.get(secret_key_name, "welcome@2026")
                     if input_password == correct_password:
                         st.session_state.authenticated = True
