@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -29,6 +29,7 @@ SCOPES = [
     "National", "International"
 ]
 
+# Fully updated matrix layout tracking all 30 new additions mapped with welcome@2026 default keys
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
@@ -37,7 +38,39 @@ FACULTY_DIRECTORY = {
     "soumya@stmaryscollege.in": {"name": "Dr. Soumya", "secret_key": "soumya_pass"},
     "rajita@stmaryscollege.in": {"name": "Dr. Rajita", "secret_key": "rajita_pass"},
     "manojkanth@stmaryscollege.in": {"name": "Dr. Manoj Kanth", "secret_key": "manojkanth_pass"},
-    "swathi@stmaryscollege.in": {"name": "Dr. Swathi", "secret_key": "swathi_pass"}
+    "swathi@stmaryscollege.in": {"name": "Dr. Swathi", "secret_key": "swathi_pass"},
+    
+    # --- New Database Profile Inclusions ---
+    "padmaleela@stmaryscollege.in": {"name": "Ms. Padmaleela", "secret_key": "padmaleela_pass"},
+    "nsrinath@stmarycollege.in": {"name": "Dr. Srinath Naganathan", "secret_key": "nsrinath_pass"},
+    "sowjanya@stmaryscollege.in": {"name": "Ms. D. Sowjanya", "secret_key": "sowjanya_pass"},
+    "sandhyarani@stmaryscollege.in": {"name": "Ms. A. Sandhya Rani", "secret_key": "sandhyarani_pass"},
+    "ragasudha@stmaryscollege.in": {"name": "Ms. Raga Sudha Jonnada", "secret_key": "ragasudha_pass"},
+    "rajyalakshmi@stmaryscollege.in": {"name": "Ms. Rajalakshmi", "secret_key": "rajyalakshmi_pass"},
+    "mahanta@stmaryscollege.in": {"name": "Mr. Mahanta Chauhan", "secret_key": "mahanta_pass"},
+    "sharol@stmaryscollege.in": {"name": "Dr. Sharol Sebastian", "secret_key": "sharol_pass"},
+    "deepthipriya@stmaryscollege.in": {"name": "Dr. Deepthi Priya", "secret_key": "deepthipriya_pass"},
+    "satabdi@stmaryscollege.in": {"name": "Dr. Satabdi Roy", "secret_key": "satabdi_pass"},
+    "shima@stmaryscollege.in": {"name": "Ms. Shima A.N", "secret_key": "shima_pass"},
+    "anuvictor@stmaryscollege.in": {"name": "Ms. Anu Victor", "secret_key": "anuvictor_pass"},
+    "sadbhavana@stmaryscollege.in": {"name": "Ms. Sadbhavana Sharat", "secret_key": "sadbhavana_pass"},
+    "sriveda@stmaryscollege.in": {"name": "Ms. Sriveda Baswapoor", "secret_key": "sriveda_pass"},
+    "rameshk@stmaryscollege.in": {"name": "Dr. Ramesh Kumar", "secret_key": "rameshk_pass"},
+    "shivakumar@stmaryscollege.in": {"name": "Mr. Shiva Kumar Reddy", "secret_key": "shivakumar_pass"},
+    "anamika@stmaryscolkul.in": {"name": "Dr. Anamika Sukul", "secret_key": "anamika_pass"},
+    "arunjose@stmaryscollege.in": {"name": "Mr. Arun B Jose", "secret_key": "arunjose_pass"},
+    "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
+    "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
+    "kirtibdnr@stmaryscollege.in": {"name": "Dr. Kirti", "secret_key": "kirti_pass"},
+    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikha_pass"},
+    "himani@stmaryscollege.in": {"name": "Dr. Himani", "secret_key": "himani_pass"},
+    "roy@stmaryscollege.in": {"name": "Mr. MSS Roy", "secret_key": "roy_pass"},
+    "phebi@stmaryscollege.in": {"name": "Ms. Phebi", "secret_key": "phebi_pass"},
+    "vigneshwari@stmaryscollege.in": {"name": "Dr. Vigneswari", "secret_key": "vigneshwari_pass"},
+    "nagarjuna@stmaryscollege.in": {"name": "Dr. Nagarjuna", "secret_key": "nagarjuna_pass"},
+    "pavitrambika@stmaryscollege.in": {"name": "Dr. Pavitrambika", "secret_key": "pavitrambika_pass"},
+    "anuradhaemani@stmaryscollege.in": {"name": "Dr. Anuradha", "secret_key": "anuradha_pass"},
+    "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"}
 }
 
 DEPARTMENT_FOLDERS = {
@@ -125,7 +158,8 @@ if not st.session_state.authenticated:
             if input_email in FACULTY_DIRECTORY:
                 secret_key_name = FACULTY_DIRECTORY[input_email]["secret_key"]
                 try:
-                    correct_password = st.secrets[secret_key_name]
+                    # Fallback configuration routing to standard default key if custom configuration profile is missing
+                    correct_password = st.secrets.get(secret_key_name, "welcome@2026")
                     if input_password == correct_password:
                         st.session_state.authenticated = True
                         st.session_state.logged_email = input_email
@@ -251,7 +285,6 @@ for i in range(1, 11):
         r_date_to = None
         
         if r_type == "Paper publication":
-            # FIXED: Splits columns correctly for Paper publications to restore the ISSN field
             sub_pub_col1, sub_pub_col2 = st.columns([6.0, 6.0])
             with sub_pub_col1:
                 j_type = st.selectbox(f"Journal Listing Index", JOURNAL_TYPES, key=f"jtype_{i}")
