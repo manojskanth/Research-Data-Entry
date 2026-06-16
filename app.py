@@ -1,4 +1,4 @@
-import streamlit st
+import streamlit as st
 import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
