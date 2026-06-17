@@ -14,8 +14,6 @@ from docx.shared import Pt
 
 # --- 1. CORE SYSTEM CONFIGURATION FROM SECRETS ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
-HR_DRIVE_FOLDER_ID = st.secrets["HR_DRIVE_FOLDER_ID"]
-IQAC_DRIVE_FOLDER_ID = st.secrets["IQAC_DRIVE_FOLDER_ID"]
 
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
@@ -70,13 +68,12 @@ FACULTY_DIRECTORY = {
     "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"}
 }
 
-# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE WITH DIRECT ROOT FETCH ---
+# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
         b64_string = st.secrets["BASE64_GCP_CREDENTIALS"]
         decoded_bytes = base64.b64decode(b64_string)
         info_matrix = json.loads(decoded_bytes)
-        
         return service_account.Credentials.from_service_account_info(
             info_matrix, 
             scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -92,27 +89,11 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
         for p_id in parent_ids:
             file_metadata = {'name': file_name, 'parents': [p_id]}
             media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=True)
-            
-            # Executing cross-account parent mapping structure safely
-            uploaded = drive_service.files().create(
-                body=file_metadata, 
-                media_body=media, 
-                fields='id, webViewLink', 
-                supportsAllDrives=True
-            ).execute()
-            
-            file_id = uploaded.get('id')
-            
+            uploaded = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
             try:
-                # Forces file visibility anchoring inside the external parent workspace
-                drive_service.permissions().create(
-                    fileId=file_id,
-                    body={'type': 'anyone', 'role': 'reader'},
-                    supportsAllDrives=True
-                ).execute()
+                drive_service.permissions().create(fileId=uploaded.get('id'), body={'type': 'anyone', 'role': 'reader'}, supportsAllDrives=True).execute()
             except:
                 pass
-                
             links.append(uploaded.get('webViewLink', ""))
         return links[0] if links else "Drive Error"
     except Exception as e:
@@ -136,10 +117,10 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     sheets_service = build('sheets', 'v4', credentials=creds)
     
     sections = [
-        {"title": "I. Research Publications", "sheet": "Research_Database", "filter": ["Paper publication", "Book Chapter", "Full Book"], "desc": "Include journal articles, book chapters, or conference proceedings. Please specify indexing (e.g., Web of Science, Scopus, Peer-Reviewed)."},
+        {"title": "I. Research Publications & Paper Presentations", "sheet": "Research_Database", "filter": ["Paper publication", "Book Chapter", "Full Book", "Paper Presentation"], "desc": "Include journal articles, book chapters, full books, or papers presented at conferences."},
         {"title": "II. Faculty Development Programs (FDPs) & Workshops", "sheet": "Research_Database", "filter": ["FDP", "Workshop"], "desc": "Include training programs attended or successfully completed."},
         {"title": "III. Professional Certifications & Training", "sheet": "Faculty_Achievements", "filter": ["Certification/Course"], "desc": "Include NPTEL courses, Innovation Ambassador training, or other professional certifications."},
-        {"title": "IV. Paper Presentations & Resource Person Roles", "sheet": "Faculty_Achievements", "filter": ["Presentation/Resource Person"], "desc": "Include papers presented at conferences, acting as a Judge, Guest Speaker, or Facilitator for colloquiums."},
+        {"title": "IV. Resource Person Roles & Invited Lectures", "sheet": "Faculty_Achievements", "filter": ["Presentation/Resource Person"], "desc": "Include acting as a Judge, Guest Speaker, Keynote Facilitator, or Resource Person for academic colloquiums."},
         {"title": "V. Research Milestones (For Doctoral Scholars)", "sheet": "Faculty_Achievements", "filter": ["Doctoral Milestone"], "desc": "Include milestones such as Synopsis Seminars, Pre-Ph.D. exams, or Thesis submission."},
         {"title": "VI. Awards, Honors, & Recognitions", "sheet": "Faculty_Achievements", "filter": ["Award/Honor"], "desc": "Include any special awards, titles, or professional recognitions."},
         {"title": "VII. Departmental & Institutional Contribution", "sheet": "Departmental_Student_Activities", "filter": ["Institutional Contribution"], "desc": "Include organized events, Institutional Social Responsibility (ISR) activities, or specialized student activities."}
@@ -182,6 +163,8 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
                             
                             if f_cat in ["Paper publication", "Book Chapter", "Full Book"]:
                                 narr = f'{f_name} published a {f_cat} titled "{title_text}" in {pub_name}. Journal Type: {j_type}, ISSN/ISBN: [{isbn_issn}], Scope: {pub_scope}. URL: {pub_url}'
+                            elif f_cat == "Paper Presentation":
+                                narr = f'{f_name} presented a research paper titled "{title_text}" at the conference organized by {org_body or pub_name} ({duration_dates or "NA"}). Scope: {conf_scope}.'
                             else:
                                 active_scope = conf_scope if (conf_scope and conf_scope != "NA") else "Institutional"
                                 narr = f'{f_name} completed a {duration_dates} {active_scope} {f_cat} on "{title_text}," organized by {org_body}.'
@@ -240,8 +223,8 @@ with tab_submit:
     st.markdown("---")
     classification = st.selectbox("Select Entry Classification Category", [
         "-- Select Sub-Ledger Direction --",
-        "🔬 Research Database (Publications, FDPs, Workshops)",
-        "🏆 Faculty Profiles & Milestones (Certifications, Presentations, Ph.D. Milestones, Awards)",
+        "🔬 Research Database (Publications, Paper Presentations, FDPs, Workshops)",
+        "🏆 Faculty Profiles & Milestones (Certifications, Resource Person Roles, Ph.D. Milestones, Awards)",
         "👥 Departmental & Student Contributions"
     ])
     
@@ -252,7 +235,7 @@ with tab_submit:
         if "Faculty Profiles" in classification:
             specific_category = st.selectbox("Sub-Category Type", [
                 "Certification/Course", 
-                "Presentation/Resource Person", 
+                "Presentation/Resource Person",
                 "Doctoral Milestone", 
                 "Award/Honor"
             ])
@@ -265,12 +248,12 @@ with tab_submit:
                 st.info("**Example:** `Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically \"Mastering Research Reviews and Meta-Analysis\"`")
             
             elif specific_category == "Presentation/Resource Person":
-                st.warning("**Format:** `[Name], [Role: e.g., Presenter/Judge/Facilitator], \"[Topic/Title],\" [Event Name/Department], [Date].`")
-                st.info("**Example:** `Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return`")
+                st.warning("**Format (Resource Person):** `[Name], [Role: e.g., Guest Speaker/Judge/Facilitator], \"[Topic/Title],\" [Organizing Event Name/Department/Institution], [Date].`")
+                st.info("**Example:** `Dr. C. Kusuma Reddy acted as a Resource Person and conducted a Department Colloquium on GST Types and Returns.`")
             
             elif specific_category == "Doctoral Milestone":
                 st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
-                st.info("**Example:** `Ms. Shanti has successfully completed her PHD thesis onn`")
+                st.info("**Example:** `Ms. Shanti has successfully completed her PHD thesis on...`")
             
             elif specific_category == "Award/Honor":
                 st.warning("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")
@@ -284,16 +267,16 @@ with tab_submit:
             uploaded_file = st.file_uploader("Upload Supporting Verification Document")
             
             if "Research Database" in classification:
-                f_cat = st.selectbox("Category/ Research Type", ["Paper publication", "Book Chapter", "Full Book", "FDP", "Workshop"])
-                j_type = st.selectbox("Journal Type", ["UGC Care listed", "Scopus", "Pubmed", "Peer Reviewed", "Other", "NA"])
-                title_text = st.text_input("Title (Ttile)")
-                duration_dates = st.text_input("Date Span Text (e.g., 5-day Online: June 10-14, 2026)")
-                pub_url = st.text_input("Publication URL")
-                pub_name = st.text_input("Publisher Name / Journal context name")
-                pub_scope = st.selectbox("Publisher Scope", ["International", "National", "NA"])
-                conf_scope = st.selectbox("Conference Scope", ["International", "National", "NA"])
+                f_cat = st.selectbox("Category/ Research Type", ["Paper publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
+                j_type = st.selectbox("Journal / Event Type", ["UGC Care listed", "Scopus", "Pubmed", "Peer Reviewed", "Conference", "Other", "NA"])
+                title_text = st.text_input("Title of Paper / Book / Topic")
+                duration_dates = st.text_input("Date Span Text (e.g., June 10-14, 2026 / Single Day: June 17, 2026)")
+                pub_url = st.text_input("Publication / Event URL (If applicable)")
+                pub_name = st.text_input("Publisher Name / Journal Name / Conference Name")
+                pub_scope = st.selectbox("Publisher Scope (For books/papers)", ["International", "National", "NA"])
+                conf_scope = st.selectbox("Conference / Event Scope", ["International", "National", "State", "Institutional", "NA"])
                 org_body = st.text_input("Organizing/Conducting Body")
-                isbn_issn = st.text_input("ISSN/ISBN Number")
+                isbn_issn = st.text_input("ISSN/ISBN Number (If applicable)")
                 
                 submit_log = st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary")
                 if submit_log:
@@ -305,7 +288,7 @@ with tab_submit:
                         form_dept,             # Col B: Department
                         f_cat,                 # Col C: Category/ Research Type
                         j_type,                # Col D: Journal Type
-                        title_text,            # Col E: Ttile
+                        title_text,            # Col E: Title
                         drive_link,            # Col F: Document Link
                         duration_dates,        # Col G: Date
                         pub_url,               # Col H: Publication URL
@@ -335,25 +318,25 @@ with tab_submit:
                         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
                         build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                            spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
+                            spreadsheetId=MASTER_SHEET_ID, range=f"./{target_sheet}/!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
                         ).execute()
                         st.success(f"🎉 Achievement string appended to the `{target_sheet}` database ledger!")
 
 with tab_document:
-    st.subheader("Central HR Document Engine Dashboard Workspace")
+    st.subheader("Central Document Engine Dashboard Workspace")
     col_d1, col_d2, col_d3 = st.columns(3)
     with col_d1: view_dept = st.selectbox("Target Department File Scope", DEPARTMENTS, key="vd1")
     with col_d2: view_month = st.selectbox("Target Month Scope", MONTHS, key="vm1")
     with col_d3: view_year = st.selectbox("Target Year Scope", ACADEMIC_YEARS, key="vy1")
         
-    if st.button("🏗️ Construct & Synchronize Automated Monthly Document Package", use_container_width=True, type="primary"):
+    if st.button("🏗️ Construct Automated Monthly Document Package", use_container_width=True, type="primary"):
         creds = get_google_credentials()
         with st.spinner("Assembling structured records from sheets sub-matrices..."):
             docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
             file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
-            destination_sync_folders = [DEPARTMENT_FOLDERS[view_dept], HR_DRIVE_FOLDER_ID, IQAC_DRIVE_FOLDER_ID]
-            upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", destination_sync_folders, creds)
+            # Synchronize to local department folder only
+            upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [DEPARTMENT_FOLDERS[view_dept]], creds)
             
-            st.success(f"🎯 Document synchronized into Drive ecosystem folders automatically!")
+            st.success(f"🎯 Document synchronized into your Department Drive folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
