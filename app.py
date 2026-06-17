@@ -93,7 +93,7 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
             file_metadata = {'name': file_name, 'parents': [p_id]}
             media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=True)
             
-            # CRITICAL SHARED DRIVE MODIFIER APPLIED HERE
+            # Executing cross-account parent mapping structure safely
             uploaded = drive_service.files().create(
                 body=file_metadata, 
                 media_body=media, 
@@ -101,15 +101,18 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
                 supportsAllDrives=True
             ).execute()
             
+            file_id = uploaded.get('id')
+            
             try:
-                # ENFORCED PERMISSION OVERRIDE FOR ORGANIZATIONAL TENANTS
+                # Forces file visibility anchoring inside the external parent workspace
                 drive_service.permissions().create(
-                    fileId=uploaded.get('id'), 
-                    body={'type': 'anyone', 'role': 'reader'}, 
+                    fileId=file_id,
+                    body={'type': 'anyone', 'role': 'reader'},
                     supportsAllDrives=True
                 ).execute()
             except:
                 pass
+                
             links.append(uploaded.get('webViewLink', ""))
         return links[0] if links else "Drive Error"
     except Exception as e:
@@ -349,7 +352,6 @@ with tab_document:
             docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
             file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
-            # THE DESTINATION ARRAY PACKS TARGET COPIES STRAIGHT TO LIVEDRIVE SYNC PANELS
             destination_sync_folders = [DEPARTMENT_FOLDERS[view_dept], HR_DRIVE_FOLDER_ID, IQAC_DRIVE_FOLDER_ID]
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", destination_sync_folders, creds)
             
