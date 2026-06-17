@@ -70,15 +70,17 @@ FACULTY_DIRECTORY = {
     "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"}
 }
 
-# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE WITH DIRECT ROOT FETCH ---
+# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE WITH FULL ENVELOPE EXTRACTION ---
 def get_google_credentials():
     try:
-        # FIXED: Pulls the Base64 token straight from the root layout mapping
         b64_string = st.secrets["BASE64_GCP_CREDENTIALS"]
         
-        # Decode the string cleanly back into native JSON
+        # Decode Base64 and instantly convert to native dictionary map
         decoded_bytes = base64.b64decode(b64_string)
         info_matrix = json.loads(decoded_bytes)
+        
+        # Pull the specific email address out of the decoded matrix automatically to verify target alignment
+        current_sa_email = info_matrix.get("client_email", "unknown")
         
         return service_account.Credentials.from_service_account_info(
             info_matrix, 
@@ -244,6 +246,7 @@ with tab_submit:
                 "Award/Honor"
             ])
 
+        # Formatting helpers stay cleanly outside the form container
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
             
