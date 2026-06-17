@@ -11,10 +11,10 @@ import json
 from docx import Document
 from docx.shared import Pt
 
-# --- 1. CORE SYSTEM CONFIGURATION ---
-MASTER_SHEET_ID = "15wPQ9QWydGKF1OIW1QkaeXB3msRjhwiJix4ZVyf6DxA"
-HR_DRIVE_FOLDER_ID = "1XFwkDsTLqYvuby6BWAJNZDt_10pBK3Hh"
-IQAC_DRIVE_FOLDER_ID = "1uueAqk4PK4vEy6kc6kiPh2qz9_vjWW7l"
+# --- 1. CORE SYSTEM CONFIGURATION FROM SECRETS ---
+MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
+HR_DRIVE_FOLDER_ID = st.secrets["HR_DRIVE_FOLDER_ID"]
+IQAC_DRIVE_FOLDER_ID = st.secrets["IQAC_DRIVE_FOLDER_ID"]
 
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
@@ -71,34 +71,21 @@ FACULTY_DIRECTORY = {
 
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
-    json_path = "credentials.json"
-    if os.path.exists(json_path):
-        with open(json_path, "r") as f:
-            info_matrix = json.load(f)
-            
+    try:
+        # Dynamically map the TOML configuration block parameters seamlessly
+        info_matrix = dict(st.secrets["gcp_service_account"])
+        
         if "private_key" in info_matrix:
-            key_content = info_matrix["private_key"]
-            
-            # 1. Clean out literal string-escaped '\n' sequences if present
-            key_content = key_content.replace("\\n", "\n")
-            
-            # 2. Re-enforce standard cryptographic boundaries cleanly
-            if "-----BEGIN PRIVATE KEY-----" not in key_content:
-                key_content = f"-----BEGIN PRIVATE KEY-----\n{key_content}"
-            if "-----END PRIVATE KEY-----" not in key_content:
-                key_content = f"{key_content}\n-----END PRIVATE KEY-----\n"
-                
-            # 3. Strip any accidental duplicate header rows or trailing whitespace noise
-            key_content = key_content.replace("-----BEGIN PRIVATE KEY-----\n-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----")
-            key_content = key_content.replace("-----END PRIVATE KEY-----\n-----END PRIVATE KEY-----", "-----END PRIVATE KEY-----")
-            
-            info_matrix["private_key"] = key_content.strip() + "\n"
+            # Resolves string encoding constraints dynamically inside runtime memory
+            clean_key = info_matrix["private_key"].replace("\\n", "\n")
+            info_matrix["private_key"] = clean_key
             
         return service_account.Credentials.from_service_account_info(
-            info_matrix, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            info_matrix, 
+            scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         )
-    else:
-        st.error("Critical configuration credential registry source missing (credentials.json).")
+    except Exception as e:
+        st.error(f"Ecosystem Verification Block Error: {str(e)}")
         st.stop()
 
 def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
@@ -258,7 +245,7 @@ with tab_submit:
             ])
 
         # -------------------------------------------------------------
-        # 🎯 FIX: Helper containers remain ABOVE the static form block to prevent layout disruption
+        # 🎯 Helper containers remain ABOVE the static form block to prevent layout disruption
         # -------------------------------------------------------------
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
@@ -284,7 +271,6 @@ with tab_submit:
                 st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")
         # -------------------------------------------------------------
 
-        # Stable form container setup
         with st.form("achievement_universal_form", clear_on_submit=True):
             uploaded_file = st.file_uploader("Upload Supporting Verification Document")
             
