@@ -75,8 +75,25 @@ def get_google_credentials():
     if os.path.exists(json_path):
         with open(json_path, "r") as f:
             info_matrix = json.load(f)
+            
         if "private_key" in info_matrix:
-            info_matrix["private_key"] = info_matrix["private_key"].replace("\\n", "\n")
+            key_content = info_matrix["private_key"]
+            
+            # 1. Clean out literal string-escaped '\n' sequences if present
+            key_content = key_content.replace("\\n", "\n")
+            
+            # 2. Re-enforce standard cryptographic boundaries cleanly
+            if "-----BEGIN PRIVATE KEY-----" not in key_content:
+                key_content = f"-----BEGIN PRIVATE KEY-----\n{key_content}"
+            if "-----END PRIVATE KEY-----" not in key_content:
+                key_content = f"{key_content}\n-----END PRIVATE KEY-----\n"
+                
+            # 3. Strip any accidental duplicate header rows or trailing whitespace noise
+            key_content = key_content.replace("-----BEGIN PRIVATE KEY-----\n-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----")
+            key_content = key_content.replace("-----END PRIVATE KEY-----\n-----END PRIVATE KEY-----", "-----END PRIVATE KEY-----")
+            
+            info_matrix["private_key"] = key_content.strip() + "\n"
+            
         return service_account.Credentials.from_service_account_info(
             info_matrix, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         )
@@ -229,7 +246,6 @@ with tab_submit:
     ])
     
     if classification != "-- Select Sub-Ledger Direction --":
-        # Global selection track parameters initialized outside the structural form boundary
         target_sheet = "Faculty_Achievements" if "Faculty Profiles" in classification else "Departmental_Student_Activities"
         specific_category = "Institutional Contribution"
         
@@ -242,7 +258,7 @@ with tab_submit:
             ])
 
         # -------------------------------------------------------------
-        # 🎯 FIXED: Guidance containers remain above the form to prevent structural layout breaks
+        # 🎯 FIX: Helper containers remain ABOVE the static form block to prevent layout disruption
         # -------------------------------------------------------------
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
@@ -268,7 +284,7 @@ with tab_submit:
                 st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")
         # -------------------------------------------------------------
 
-        # Clean, static form container layout block execution
+        # Stable form container setup
         with st.form("achievement_universal_form", clear_on_submit=True):
             uploaded_file = st.file_uploader("Upload Supporting Verification Document")
             
