@@ -6,6 +6,7 @@ from googleapiclient.http import MediaIoBaseUpload
 import io
 import os
 import json
+import base64
 
 # Ensure python-docx is appended to your requirements.txt file
 from docx import Document
@@ -69,14 +70,16 @@ FACULTY_DIRECTORY = {
     "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"}
 }
 
-# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
+# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE WITH DIRECT ROOT FETCH ---
 def get_google_credentials():
     try:
-        info_matrix = dict(st.secrets["gcp_service_account"])
-        if "private_key" in info_matrix:
-            # Clean explicit escaped markers safely
-            info_matrix["private_key"] = info_matrix["private_key"].replace("\\n", "\n")
-            
+        # FIXED: Pulls the Base64 token straight from the root layout mapping
+        b64_string = st.secrets["BASE64_GCP_CREDENTIALS"]
+        
+        # Decode the string cleanly back into native JSON
+        decoded_bytes = base64.b64decode(b64_string)
+        info_matrix = json.loads(decoded_bytes)
+        
         return service_account.Credentials.from_service_account_info(
             info_matrix, 
             scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -241,7 +244,6 @@ with tab_submit:
                 "Award/Honor"
             ])
 
-        # Formatting guidance containers remain safely above form boundaries
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
             
