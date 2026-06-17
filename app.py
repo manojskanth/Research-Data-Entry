@@ -69,26 +69,13 @@ FACULTY_DIRECTORY = {
     "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"}
 }
 
-# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE WITH AUTO-REPAIR ---
+# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
         info_matrix = dict(st.secrets["gcp_service_account"])
-        
         if "private_key" in info_matrix:
-            key_content = info_matrix["private_key"]
-            
-            # 1. Programmatically repair whitespace translations or literal \n configurations
-            key_content = key_content.replace("\\n", "\n").replace(" ", "\n")
-            
-            # 2. Hard-enforce strict block boundary reconstruction mapping
-            key_content = key_content.replace("BEGIN\nPRIVATE\nKEY", "BEGIN PRIVATE KEY")
-            key_content = key_content.replace("END\nPRIVATE\nKEY", "END PRIVATE KEY")
-            
-            # 3. Clean out overlapping duplication lines
-            while "\n\n" in key_content:
-                key_content = key_content.replace("\n\n", "\n")
-                
-            info_matrix["private_key"] = key_content.strip()
+            # Clean explicit escaped markers safely
+            info_matrix["private_key"] = info_matrix["private_key"].replace("\\n", "\n")
             
         return service_account.Credentials.from_service_account_info(
             info_matrix, 
@@ -254,9 +241,7 @@ with tab_submit:
                 "Award/Honor"
             ])
 
-        # -------------------------------------------------------------
-        # 🎯 Helper containers remain ABOVE the static form block to prevent layout disruption
-        # -------------------------------------------------------------
+        # Formatting guidance containers remain safely above form boundaries
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
             
@@ -279,7 +264,6 @@ with tab_submit:
             elif specific_category == "Institutional Contribution":
                 st.warning("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")
                 st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")
-        # -------------------------------------------------------------
 
         with st.form("achievement_universal_form", clear_on_submit=True):
             uploaded_file = st.file_uploader("Upload Supporting Verification Document")
