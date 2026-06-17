@@ -70,17 +70,12 @@ FACULTY_DIRECTORY = {
     "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"}
 }
 
-# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE WITH FULL ENVELOPE EXTRACTION ---
+# --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE WITH DIRECT ROOT FETCH ---
 def get_google_credentials():
     try:
         b64_string = st.secrets["BASE64_GCP_CREDENTIALS"]
-        
-        # Decode Base64 and instantly convert to native dictionary map
         decoded_bytes = base64.b64decode(b64_string)
         info_matrix = json.loads(decoded_bytes)
-        
-        # Pull the specific email address out of the decoded matrix automatically to verify target alignment
-        current_sa_email = info_matrix.get("client_email", "unknown")
         
         return service_account.Credentials.from_service_account_info(
             info_matrix, 
@@ -97,9 +92,22 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
         for p_id in parent_ids:
             file_metadata = {'name': file_name, 'parents': [p_id]}
             media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=True)
-            uploaded = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
+            
+            # CRITICAL SHARED DRIVE MODIFIER APPLIED HERE
+            uploaded = drive_service.files().create(
+                body=file_metadata, 
+                media_body=media, 
+                fields='id, webViewLink', 
+                supportsAllDrives=True
+            ).execute()
+            
             try:
-                drive_service.permissions().create(fileId=uploaded.get('id'), body={'type': 'anyone', 'role': 'reader'}, supportsAllDrives=True).execute()
+                # ENFORCED PERMISSION OVERRIDE FOR ORGANIZATIONAL TENANTS
+                drive_service.permissions().create(
+                    fileId=uploaded.get('id'), 
+                    body={'type': 'anyone', 'role': 'reader'}, 
+                    supportsAllDrives=True
+                ).execute()
             except:
                 pass
             links.append(uploaded.get('webViewLink', ""))
@@ -246,7 +254,6 @@ with tab_submit:
                 "Award/Honor"
             ])
 
-        # Formatting helpers stay cleanly outside the form container
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
             
@@ -342,6 +349,7 @@ with tab_document:
             docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
             file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
+            # THE DESTINATION ARRAY PACKS TARGET COPIES STRAIGHT TO LIVEDRIVE SYNC PANELS
             destination_sync_folders = [DEPARTMENT_FOLDERS[view_dept], HR_DRIVE_FOLDER_ID, IQAC_DRIVE_FOLDER_ID]
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", destination_sync_folders, creds)
             
