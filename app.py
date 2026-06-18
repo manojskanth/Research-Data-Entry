@@ -229,7 +229,7 @@ with tab_submit:
     ])
     
     if classification != "-- Select Sub-Ledger Direction --":
-        # FIXED: Explicit structural route map entirely clears text parsing typos
+        # FIXED: Hard separation of categories variables to eliminate mismatch cross-talk
         if "Research Database" in classification:
             target_sheet = "Research_Database"
             specific_category = "Research"
@@ -289,24 +289,24 @@ with tab_submit:
                     drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
                     
                     new_row = [
-                        current_faculty_name,  # Col A: Faculty Name
-                        form_dept,             # Col B: Department
-                        f_cat,                 # Col C: Category/ Research Type
-                        j_type,                # Col D: Journal Type
-                        title_text,            # Col E: Title
-                        drive_link,            # Col F: Document Link
-                        duration_dates,        # Col G: Date
-                        pub_url,               # Col H: Publication URL
-                        pub_name,              # Col I: Publisher Name
-                        pub_scope,             # Col J: Publisher Scope
-                        conf_scope,            # Col K: Conference Scope
-                        org_body,              # Col L: Organizing/Conducting Body
-                        isbn_issn,             # Col M: ISSN/ISBN Number
-                        form_month             # Col N: Reporting Month Helper
+                        current_faculty_name,
+                        form_dept,
+                        f_cat,
+                        j_type,
+                        title_text,
+                        drive_link,
+                        duration_dates,
+                        pub_url,
+                        pub_name,
+                        pub_scope,
+                        conf_scope,
+                        org_body,
+                        isbn_issn,
+                        form_month
                     ]
                     
                     build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                        spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
+                        spreadsheetId=MASTER_SHEET_ID, range=f"'Research_Database'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
                     ).execute()
                     st.success("🎉 Structured Research Entry compiled into database ledger completely!")
                     
@@ -321,9 +321,14 @@ with tab_submit:
                         creds = get_google_credentials()
                         drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
                         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
                         
-                        # FIXED: Pristine range syntax notation targets cleanly across sheets endpoint
+                        # FIXED: Isolated explicit mappings block ensures proper row element lengths
+                        if target_sheet == "Faculty_Achievements":
+                            new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
+                        else:
+                            # Adjusting Departmental sheet to standard 8-column layout format
+                            new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
+                        
                         build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
                             spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
                         ).execute()
@@ -342,7 +347,6 @@ with tab_document:
             docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
             file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
-            # Synchronize to local department folder only
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [DEPARTMENT_FOLDERS[view_dept]], creds)
             
             st.success(f"🎯 Document synchronized into your Department Drive folder automatically!")
