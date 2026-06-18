@@ -123,7 +123,7 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
         {"title": "IV. Resource Person Roles & Invited Lectures", "sheet": "Faculty_Achievements", "filter": ["Presentation/Resource Person"], "desc": "Include acting as a Judge, Guest Speaker, Keynote Facilitator, or Resource Person for academic colloquiums."},
         {"title": "V. Research Milestones (For Doctoral Scholars)", "sheet": "Faculty_Achievements", "filter": ["Doctoral Milestone"], "desc": "Include milestones such as Synopsis Seminars, Pre-Ph.D. exams, or Thesis submission."},
         {"title": "VI. Awards, Honors, & Recognitions", "sheet": "Faculty_Achievements", "filter": ["Award/Honor"], "desc": "Include any special awards, titles, or professional recognitions."},
-        {"title": "VII. Departmental & Institutional Contribution", "sheet": "Departmental_Student_Activities", "filter": ["Institutional Contribution"], "desc": "Include organized events, Institutional Social Responsibility (ISR) activities, or specialized student activities."}
+        {"title": "VII. Departmental & Student Contribution", "sheet": "Student_Activities", "filter": ["Institutional Contribution"], "desc": "Include organized events, Institutional Social Responsibility (ISR) activities, or specialized student activities."}
     ]
     
     for sec in sections:
@@ -229,7 +229,7 @@ with tab_submit:
     ])
     
     if classification != "-- Select Sub-Ledger Direction --":
-        # FIXED: Hard separation of categories variables to eliminate mismatch cross-talk
+        # LITERAL TARGET MATCH: Maps straight to 'Student_Activities'
         if "Research Database" in classification:
             target_sheet = "Research_Database"
             specific_category = "Research"
@@ -242,7 +242,7 @@ with tab_submit:
                 "Award/Honor"
             ])
         else:
-            target_sheet = "Departmental_Student_Activities"
+            target_sheet = "Student_Activities"
             specific_category = "Institutional Contribution"
 
         if "Research Database" not in classification:
@@ -306,7 +306,7 @@ with tab_submit:
                     ]
                     
                     build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                        spreadsheetId=MASTER_SHEET_ID, range=f"'Research_Database'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
+                        spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
                     ).execute()
                     st.success("🎉 Structured Research Entry compiled into database ledger completely!")
                     
@@ -322,15 +322,14 @@ with tab_submit:
                         drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
                         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         
-                        # FIXED: Isolated explicit mappings block ensures proper row element lengths
-                        if target_sheet == "Faculty_Achievements":
-                            new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
-                        else:
-                            # Adjusting Departmental sheet to standard 8-column layout format
-                            new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
+                        new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
                         
                         build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                            spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
+                            spreadsheetId=MASTER_SHEET_ID, 
+                            range=f"'{target_sheet}'!A1", 
+                            valueInputOption="USER_ENTERED", 
+                            insertDataOption="INSERT_ROWS", 
+                            body={"values": [new_row]}
                         ).execute()
                         st.success(f"🎉 Achievement string appended to the `{target_sheet}` database ledger!")
 
