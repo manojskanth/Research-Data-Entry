@@ -229,16 +229,21 @@ with tab_submit:
     ])
     
     if classification != "-- Select Sub-Ledger Direction --":
-        target_sheet = "Faculty_Achievements" if "Faculty Profiles" in classification else "Departmental_Student_Activities"
-        specific_category = "Institutional Contribution"
-        
-        if "Faculty Profiles" in classification:
+        # FIXED: Explicit structural route map entirely clears text parsing typos
+        if "Research Database" in classification:
+            target_sheet = "Research_Database"
+            specific_category = "Research"
+        elif "Faculty Profiles" in classification:
+            target_sheet = "Faculty_Achievements"
             specific_category = st.selectbox("Sub-Category Type", [
                 "Certification/Course", 
                 "Presentation/Resource Person",
                 "Doctoral Milestone", 
                 "Award/Honor"
             ])
+        else:
+            target_sheet = "Departmental_Student_Activities"
+            specific_category = "Institutional Contribution"
 
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
@@ -301,7 +306,7 @@ with tab_submit:
                     ]
                     
                     build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                        spreadsheetId=MASTER_SHEET_ID, range="'Research_Database'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
+                        spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
                     ).execute()
                     st.success("🎉 Structured Research Entry compiled into database ledger completely!")
                     
@@ -317,8 +322,10 @@ with tab_submit:
                         drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
                         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
+                        
+                        # FIXED: Pristine range syntax notation targets cleanly across sheets endpoint
                         build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                            spreadsheetId=MASTER_SHEET_ID, range=f"./{target_sheet}/!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
+                            spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
                         ).execute()
                         st.success(f"🎉 Achievement string appended to the `{target_sheet}` database ledger!")
 
