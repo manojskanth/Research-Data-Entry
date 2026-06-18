@@ -19,6 +19,9 @@ DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences"
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
+# Exact order map used to sort rows mathematically before pushing to Google Sheets
+DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
+
 DEPARTMENT_FOLDERS = {
     "English & Languages": "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG",
     "Social Sciences & Humanities": "1m0xEcv-WKQr8CWfHlZ5AuCWIFXAm1H5g",
@@ -98,6 +101,53 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
         return links[0] if links else "Drive Error"
     except Exception as e:
         return f"Upload Failed: {str(e)}"
+
+# --- BRAND NEW: CORE RE-SORTING ENGINE MATRIX ---
+def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, creds):
+    try:
+        sheets_service = build('sheets', 'v4', credentials=creds)
+        
+        # 1. Fetch all existing data elements from target sheet
+        result = sheets_service.spreadsheets().values().get(
+            spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000"
+        ).execute()
+        rows = result.get('values', [])
+        
+        if not rows:
+            # If completely empty workspace, write row immediately as header/first element
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1",
+                valueInputOption="USER_ENTERED", body={"values": [new_row]}
+            ).execute()
+            return
+
+        header = rows[0]
+        data_rows = rows[1:]
+        data_rows.append(new_row) # Safely drop new entry directly into matrix array
+        
+        # 2. Sort the entries using your custom organizational priority rule
+        def sort_key_resolver(row):
+            if len(row) <= dept_column_index:
+                return len(DEPARTMENTS) # Unknown/missing index buffer safety
+            dept_name = row[dept_column_index]
+            return DEPT_SORT_ORDER.get(dept_name, len(DEPARTMENTS))
+
+        data_rows.sort(key=sort_key_resolver)
+        sorted_matrix = [header] + data_rows
+        
+        # 3. Clean up the sheet space entirely to prevent residual rows trailing underneath
+        sheets_service.spreadsheets().values().clear(
+            spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000"
+        ).execute()
+        
+        # 4. Overwrite matrix canvas fresh with ordered hierarchy structure rows block completely
+        sheets_service.spreadsheets().values().update(
+            spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1",
+            valueInputOption="USER_ENTERED", body={"values": sorted_matrix}
+        ).execute()
+        
+    except Exception as e:
+        st.error(f"Rearrangement Sorthing Algorithm Pipeline Failure Block: {str(e)}")
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(dept_name, active_month, active_year, creds):
@@ -228,8 +278,7 @@ with tab_submit:
         "👥 Departmental & Student Contributions"
     ])
     
-    if classification != "-- Select Sub-Ledger Direction --":
-        # LITERAL TARGET MATCH: Maps straight to 'Student_Activities'
+    if classification != "-- Select Sub-LedAF Direction --":
         if "Research Database" in classification:
             target_sheet = "Research_Database"
             specific_category = "Research"
@@ -290,7 +339,7 @@ with tab_submit:
                     
                     new_row = [
                         current_faculty_name,
-                        form_dept,
+                        form_dept, # Index 1 for Research Database sorting column routing
                         f_cat,
                         j_type,
                         title_text,
@@ -305,10 +354,9 @@ with tab_submit:
                         form_month
                     ]
                     
-                    build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                        spreadsheetId=MASTER_SHEET_ID, range=f"'{target_sheet}'!A1", valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body={"values": [new_row]}
-                    ).execute()
-                    st.success("🎉 Structured Research Entry compiled into database ledger completely!")
+                    # Commits and sorts automatically by department
+                    append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
+                    st.success("🎉 Structured Research Entry compiled into database ledger and perfectly sorted by department hierarchy!")
                     
             else:
                 narrative_input = st.text_area("Enter Achievement Narrative Text Statement String", placeholder="Write your paragraph matching the sample pattern display block above...")
@@ -324,14 +372,9 @@ with tab_submit:
                         
                         new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
                         
-                        build('sheets', 'v4', credentials=creds).spreadsheets().values().append(
-                            spreadsheetId=MASTER_SHEET_ID, 
-                            range=f"'{target_sheet}'!A1", 
-                            valueInputOption="USER_ENTERED", 
-                            insertDataOption="INSERT_ROWS", 
-                            body={"values": [new_row]}
-                        ).execute()
-                        st.success(f"🎉 Achievement string appended to the `{target_sheet}` database ledger!")
+                        # Commits and sorts automatically by department (Department string is at index 1 for both sheets)
+                        append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
+                        st.success(f"🎉 Achievement string appended to the `{target_sheet}` ledger and perfectly sorted by department hierarchy!")
 
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
@@ -342,7 +385,7 @@ with tab_document:
         
     if st.button("🏗️ Construct Automated Monthly Document Package", use_container_width=True, type="primary"):
         creds = get_google_credentials()
-        with st.spinner("Assembling structured records from sheets sub-matrices..."):
+        with st.spinner("Assembling structured records from sheets..."):
             docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
             file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
