@@ -152,7 +152,6 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     
     sheets_service = build('sheets', 'v4', credentials=creds)
     
-    # Restructured cleanly to ensure string variables never break boundaries across page limits
     sections = [
         {"title": "I. Research Publications & Paper Presentations", "sheet": "Research_Database", "filter": ["Paper publication", "Book Chapter", "Full Book", "Paper Presentation"], "desc": "Include journal articles, book chapters, full books, or papers presented at conferences."},
         {"title": "II. Faculty Development Programs (FDPs) & Workshops", "sheet": "Research_Database", "filter": ["FDP", "Workshop"], "desc": "Include training programs attended or successfully completed."},
@@ -246,13 +245,24 @@ with tab_submit:
             specific_category = st.selectbox("Sub-Category Type", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
         else: target_sheet, specific_category = "Student_Activities", "Institutional Contribution"
 
+        # FIXED: Core verification pattern helpers fully restored back into application layout space
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
-            if specific_category == "Certification/Course": st.warning("**Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].`")
-            elif specific_category == "Presentation/Resource Person": st.warning("**Format:** `[Name], [Role: e.g., Guest Speaker/Judge/Facilitator], \"[Topic/Title],\" [Organizing Event Name/Department/Institution], [Date].`")
-            elif specific_category == "Doctoral Milestone": st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
-            elif specific_category == "Award/Honor": st.warning("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")
-            elif specific_category == "Institutional Contribution": st.warning("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")
+            if specific_category == "Certification/Course": 
+                st.warning("**Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].`")
+                st.info("**Example:** `Mr. MSS Roy successfully completed an 8-week NPTEL certification course in \"Advanced Corporate Governance\" with an Elite Silver Elite Medal, organized by IIT Madras.`")
+            elif specific_category == "Presentation/Resource Person": 
+                st.warning("**Format:** `[Name], [Role: Guest Speaker/Judge/Facilitator], \"[Topic/Title],\" [Organizing Event Name/Department/Institution], [Date].`")
+                st.info("**Example:** `Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on \"Emerging Trends in Literary Criticism\" for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.`")
+            elif specific_category == "Doctoral Milestone": 
+                st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
+                st.info("**Example:** `Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled \"A Comprehensive Evaluation of Cloud Workloads\" at Osmania University.`")
+            elif specific_category == "Award/Honor": 
+                st.warning("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")
+                st.info("**Example:** `Dr. Deepthi Priya was conferred with the \"Best Faculty Researcher Award 2026\" by the Institute of Scholar Recognitions on May 12, 2026.`")
+            elif specific_category == "Institutional Contribution": 
+                st.warning("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")
+                st.info("**Example:** `The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled \"Eco-Innovate 2026\" for undergraduate students of regional colleges on April 22, 2026.`")
 
         with st.form("achievement_universal_form", clear_on_submit=True):
             uploaded_file = st.file_uploader("Upload Supporting Verification Document")
