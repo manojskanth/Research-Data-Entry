@@ -75,9 +75,7 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # Securely expanding explicit single-line escaped strings back into authentic multiline structural tokens
         clean_key = st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n')
-        
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
             "project_id": st.secrets["GCP_PROJECT_ID"],
