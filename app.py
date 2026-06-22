@@ -75,11 +75,14 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
+        # Securely expanding explicit single-line escaped strings back into authentic multiline structural tokens
+        clean_key = st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n')
+        
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
             "project_id": st.secrets["GCP_PROJECT_ID"],
             "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": st.secrets["GCP_PRIVATE_KEY"],
+            "private_key": clean_key,
             "client_email": st.secrets["GCP_CLIENT_EMAIL"],
             "client_id": st.secrets["GCP_CLIENT_ID"],
             "token_uri": st.secrets["GCP_TOKEN_URI"]
@@ -245,7 +248,6 @@ with tab_submit:
             specific_category = st.selectbox("Sub-Category Type", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
         else: target_sheet, specific_category = "Student_Activities", "Institutional Contribution"
 
-        # FIXED: Core verification pattern helpers fully restored back into application layout space
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
             if specific_category == "Certification/Course": 
