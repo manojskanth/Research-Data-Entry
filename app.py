@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 import io
 from docx import Document
 
-# --- 1. CONFIG & DIRECTORY ---
+# --- 1. CONFIG & FULL DIRECTORY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
@@ -57,7 +57,8 @@ FACULTY_DIRECTORY = {
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"}
 }
-# --- 2. AUTH & HELPERS ---
+
+# --- 2. AUTH ---
 def get_google_credentials():
     clean_key = st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n")
     info = {
@@ -71,69 +72,72 @@ def get_google_credentials():
 # --- 3. UI ---
 st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
 
-# (Authentication Logic: Existing)
+if "authenticated" not in st.session_state: st.session_state.authenticated = False
+if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
+
+if not st.session_state.authenticated:
+    email = st.text_input("College Email").lower()
+    pw = st.text_input("Password", type="password")
+    if st.button("Sign In"):
+        if email in FACULTY_DIRECTORY and pw == st.secrets.get(FACULTY_DIRECTORY[email]["secret_key"], "welcome@2026"):
+            st.session_state.authenticated = True
+            st.session_state.logged_email = email
+            st.rerun()
+        else: st.error("Invalid credentials.")
+    st.stop()
 
 st.image("logo.png", width=100)
 tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
 
 with tab_admin:
-    if st.session_state.get("logged_email") == "research@stmaryscollege.in":
-        st.toggle("Enable Data Entry for Users", key="admin_enabled")
-    else:
-        st.warning("Unauthorized access.")
+    if st.session_state.logged_email == "research@stmaryscollege.in":
+        st.session_state.admin_enabled = st.toggle("Enable Data Entry for Users", value=st.session_state.admin_enabled)
+    else: st.warning("Unauthorized access.")
 
 with tab_submit:
-    if not st.session_state.get("admin_enabled", True) and st.session_state.get("logged_email") != "research@stmaryscollege.in":
+    if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
         st.error("Data entry is currently disabled by the Administrator.")
     else:
         st.subheader("Add Monthly Achievement Entry")
         classification = st.selectbox("Select Classification", [
-            "--- Select Category ---", 
-            "🔬 Research Database", 
-            "🏆 Faculty Profiles & Milestones", 
-            "👥 Departmental & Student Contributions"
+            "--- Select Category ---", "🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"
         ])
         
-        # --- RESEARCH DATABASE TIER ---
         if classification == "🔬 Research Database":
+            r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
             with st.form("research_db_form", clear_on_submit=True):
-                r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
                 title = st.text_input("Title*")
                 org = st.text_input("Organised By/Journal Name*")
-                
-                # Dynamic Logic: Only publications show ISSN/URL
                 if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
                     issn = st.text_input("ISSN/ISBN Number*")
                     url = st.text_input("URL*")
-                
-                # Collaboration Logic
+                elif r_type in ["Paper Presentation", "FDP", "Workshop"]:
+                    date_span = st.text_input("Date Span*")
+                    scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
                 collab_check = st.checkbox("Collaboration involved?")
                 collab_names = st.text_input("Enter Collaborator Names*") if collab_check else ""
-                
-                upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                
-                if st.form_submit_button("Submit Research"):
+                upload = st.file_uploader("Upload Verification*")
+                if st.form_submit_button("Submit"):
                     if not upload: st.error("Verification document is mandatory!")
                     elif collab_check and not collab_names: st.error("Collaboration names are mandatory!")
                     elif not title or not org: st.error("Title and Organisation are mandatory!")
-                    else: st.success(f"{r_type} entry submitted!")
+                    elif r_type in ["Paper Publication", "Book Chapter", "Full Book"] and (not issn or not url): st.error("ISSN and URL are mandatory!")
+                    else: st.success(f"{r_type} submitted successfully!")
 
-        # --- FACULTY PROFILES TIER ---
         elif classification == "🏆 Faculty Profiles & Milestones":
             with st.form("faculty_form", clear_on_submit=True):
-                narrative = st.text_area("Achievement Narrative*")
-                upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                if st.form_submit_button("Submit Profile"):
-                    if not upload or not narrative: st.error("Narrative and Upload are mandatory!")
+                st.text_area("Achievement Narrative*")
+                upload = st.file_uploader("Upload Verification*")
+                if st.form_submit_button("Submit"):
+                    if not upload: st.error("Verification mandatory!")
                     else: st.success("Profile submitted!")
 
-        # --- DEPARTMENTAL CONTRIBUTIONS TIER ---
         elif classification == "👥 Departmental & Student Contributions":
             with st.form("student_form", clear_on_submit=True):
-                desc = st.text_area("Description*")
-                upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                if st.form_submit_button("Submit Contribution"):
-                    if not upload or not desc: st.error("Description and Upload are mandatory!")
+                st.text_area("Description*")
+                upload = st.file_uploader("Upload Verification*")
+                if st.form_submit_button("Submit"):
+                    if not upload: st.error("Verification mandatory!")
                     else: st.success("Contribution submitted!")
 
 with tab_document:
