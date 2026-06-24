@@ -5,13 +5,12 @@ from googleapiclient.discovery import build
 import io
 from docx import Document
 
-# --- 1. CONFIG & FULL FACULTY DIRECTORY ---
+# --- 1. CONFIG & FACULTY DIRECTORY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-# (FACULTY_DIRECTORY remains exactly as you provided)
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
@@ -59,7 +58,7 @@ FACULTY_DIRECTORY = {
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"}
 }
 
-# --- 2. AUTH & UI ---
+# --- 2. AUTH ---
 def get_google_credentials():
     clean_key = st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n")
     info = {
@@ -70,9 +69,9 @@ def get_google_credentials():
     }
     return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
 
+# --- 3. UI ---
 st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
 
-# (Authentication block here remains the same)
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
 
@@ -88,6 +87,7 @@ if not st.session_state.authenticated:
         else: st.error("Invalid credentials.")
     st.stop()
 
+st.image("logo.png", width=100)
 tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
 
 with tab_admin:
@@ -99,11 +99,20 @@ with tab_submit:
     if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
         st.error("Data entry is disabled.")
     else:
-        classification = st.selectbox("Select Classification", ["---", "🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"])
+        st.subheader("Add Monthly Achievement Entry")
+        # Global Dropdowns
+        col1, col2, col3 = st.columns(3)
+        with col1: form_dept = st.selectbox("Department Focus", DEPARTMENTS)
+        with col2: form_month = st.selectbox("Reporting Month", MONTHS)
+        with col3: form_year = st.selectbox("Academic Year", ACADEMIC_YEARS)
+        st.markdown("---")
+        
+        classification = st.selectbox("Select Classification", [
+            "--- Select Category ---", "🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"
+        ])
         
         if classification == "🔬 Research Database":
             r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
-            # Moved OUTSIDE the form to allow instant reactivity
             collab_check = st.checkbox("Collaboration involved?", key="collab_box")
             
             with st.form("research_db_form", clear_on_submit=True):
@@ -124,6 +133,29 @@ with tab_submit:
                     elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names are mandatory!")
                     elif not title or not org: st.error("Title and Organisation are mandatory!")
                     elif r_type in ["Paper Publication", "Book Chapter", "Full Book"] and (not issn or not url): st.error("ISSN and URL are mandatory!")
-                    else: st.success(f"{r_type} submitted successfully!")
-        
-        # (Faculty/Student tabs remain as before)
+                    elif r_type in ["Paper Presentation", "FDP", "Workshop"] and not date_span: st.error("Date Span is mandatory!")
+                    else: st.success(f"{r_type} for {form_dept} ({form_month} {form_year}) submitted!")
+
+        elif classification == "🏆 Faculty Profiles & Milestones":
+            with st.form("faculty_form", clear_on_submit=True):
+                st.text_area("Achievement Narrative*")
+                upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                if st.form_submit_button("Submit"):
+                    if not upload: st.error("Verification mandatory!")
+                    else: st.success("Profile submitted!")
+
+        elif classification == "👥 Departmental & Student Contributions":
+            with st.form("student_form", clear_on_submit=True):
+                st.text_area("Description*")
+                upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                if st.form_submit_button("Submit"):
+                    if not upload: st.error("Verification mandatory!")
+                    else: st.success("Contribution submitted!")
+
+with tab_document:
+    st.subheader("Monthly Achievement Generator")
+    if st.button("🏗️ Construct Automated Monthly Document Package"):
+        st.info("Generating report...")
+
+st.markdown("---")
+st.markdown("<div style='text-align: center; color: gray;'>Developed by Research Committee @ St. Mary's College</div>", unsafe_allow_html=True)
