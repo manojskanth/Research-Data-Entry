@@ -4,9 +4,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import io
-import os
 import json
-import base64
 
 # Ensure python-docx is appended to your requirements.txt file
 from docx import Document
@@ -19,7 +17,6 @@ DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences"
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-# Exact order map used to sort rows mathematically before pushing to Google Sheets
 DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
 
 DEPARTMENT_FOLDERS = {
@@ -69,29 +66,28 @@ FACULTY_DIRECTORY = {
     "pavitrambika@stmaryscollege.in": {"name": "Dr. Pavitrambika", "secret_key": "pavitrambika_pass"},
     "anuradhaemani@stmaryscollege.in": {"name": "Dr. Anuradha", "secret_key": "anuradha_pass"},
     "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"},
-    # --- Roster Additions ---
     "timee@stmaryscollege.in": {"name": "Dr. Timee Ronra Shimray", "secret_key": "timee_pass"},
     "ismail@stmaryscollege.in": {"name": "Mr. Ismail C", "secret_key": "ismail_pass"},
     "aksharasingh@stmaryscollege.in": {"name": "Dr. Akshara Singh", "secret_key": "akshara_pass"},
-    "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"}
+    "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
+    "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"}
 }
 
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # FIXED: Reconstructing matrix fields dynamically from individual string variables
+        clean_key = st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n')
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
             "project_id": st.secrets["GCP_PROJECT_ID"],
             "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n'),
+            "private_key": clean_key,
             "client_email": st.secrets["GCP_CLIENT_EMAIL"],
             "client_id": st.secrets["GCP_CLIENT_ID"],
             "token_uri": st.secrets["GCP_TOKEN_URI"]
         }
         return service_account.Credentials.from_service_account_info(
-            info_matrix, 
-            scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            info_matrix, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         )
     except Exception as e:
         st.error(f"Ecosystem Verification Block Error: {str(e)}")
@@ -107,8 +103,7 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
             uploaded = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
             try:
                 drive_service.permissions().create(fileId=uploaded.get('id'), body={'type': 'anyone', 'role': 'reader'}, supportsAllDrives=True).execute()
-            except:
-                pass
+            except: pass
             links.append(uploaded.get('webViewLink', ""))
         return links[0] if links else "Drive Error"
     except Exception as e:
@@ -117,7 +112,6 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
 def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, creds):
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
-        
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000"
         ).execute()
@@ -130,37 +124,25 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
             ).execute()
             return
 
-        header = rows[0]
-        data_rows = rows[1:]
+        header, data_rows = rows[0], rows[1:]
         data_rows.append(new_row)
         
-        def sort_key_resolver(row):
-            if len(row) <= dept_column_index:
-                return len(DEPARTMENTS)
-            dept_name = row[dept_column_index]
-            return DEPT_SORT_ORDER.get(dept_name, len(DEPARTMENTS))
-
-        data_rows.sort(key=sort_key_resolver)
+        data_rows.sort(key=lambda r: DEPT_SORT_ORDER.get(r[dept_column_index], len(DEPARTMENTS)) if len(r) > dept_column_index else len(DEPARTMENTS))
         sorted_matrix = [header] + data_rows
         
-        sheets_service.spreadsheets().values().clear(
-            spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000"
-        ).execute()
-        
+        sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000").execute()
         sheets_service.spreadsheets().values().update(
             spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1",
             valueInputOption="USER_ENTERED", body={"values": sorted_matrix}
         ).execute()
-        
     except Exception as e:
-        st.error(f"Rearrangement Sorting Algorithm Pipeline Failure Block: {str(e)}")
+        st.error(f"Sorting Error: {str(e)}")
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(dept_name, active_month, active_year, creds):
     doc = Document()
-    style = doc.styles['Normal']
-    style.font.name = 'Times New Roman'
-    style.font.size = Pt(12)
+    doc.styles['Normal'].font.name = 'Times New Roman'
+    doc.styles['Normal'].font.size = Pt(12)
     
     title_p = doc.add_paragraph()
     title_p.add_run(f"Monthly Staff Achievements Report: {active_month}, {active_year}\n").bold = True
@@ -189,47 +171,28 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
         try:
             res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=f"'{sec['sheet']}'!A1:N1000").execute()
             rows = res.get('values', [])
-        except:
-            rows = []
+        except: rows = []
             
         has_data = False
         if len(rows) > 1:
             for row in rows[1:]:
                 if len(row) >= 6:
-                    if sec["sheet"] == "Research_Database":
-                        row_dept, row_cat, row_month = row[1], row[2], row[13]
-                    else:
-                        row_dept, row_month, row_cat = row[1], row[2], row[4]
+                    row_dept, row_cat, row_month = (row[1], row[2], row[13]) if sec["sheet"] == "Research_Database" else (row[1], row[2], row[4])
                     
                     if row_dept == dept_name and row_month == active_month and row_cat in sec["filter"]:
                         p = doc.add_paragraph(style='List Bullet')
-                        
                         if sec["sheet"] == "Research_Database":
-                            f_name = row[0]
-                            f_cat = row[2]
-                            j_type = row[3]
-                            title_text = row[4]
-                            pub_url = row[7]
-                            pub_name = row[8]
-                            pub_scope = row[9]
-                            conf_scope = row[10]
-                            org_body = row[11]
-                            isbn_issn = row[12]
-                            duration_dates = row[6]
-                            
+                            f_name, f_cat, j_type, title_text, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, duration_dates = row[0], row[2], row[3], row[4], row[7], row[8], row[9], row[10], row[11], row[12], row[6]
                             if f_cat in ["Paper publication", "Book Chapter", "Full Book"]:
                                 narr = f'{f_name} published a {f_cat} titled "{title_text}" in {pub_name}. Journal Type: {j_type}, ISSN/ISBN: [{isbn_issn}], Scope: {pub_scope}. URL: {pub_url}'
                             elif f_cat == "Paper Presentation":
                                 narr = f'{f_name} presented a research paper titled "{title_text}" at the conference organized by {org_body or pub_name} ({duration_dates or "NA"}). Scope: {conf_scope}.'
                             else:
-                                active_scope = conf_scope if (conf_scope and conf_scope != "NA") else "Institutional"
-                                narr = f'{f_name} completed a {duration_dates} {active_scope} {f_cat} on "{title_text}," organized by {org_body}.'
+                                narr = f'{f_name} completed a {duration_dates} {conf_scope if (conf_scope and conf_scope != "NA") else "Institutional"} {f_cat} on "{title_text}," organized by {org_body}.'
                         else:
                             narr = row[5]
-                            
                         p.add_run(narr)
                         has_data = True
-                        
         if not has_data:
             doc.add_paragraph().add_run("\t- Nil -")
         doc.add_paragraph()
@@ -239,31 +202,24 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     return doc_stream.getvalue()
 
 # --- 4. STREAMLIT FRAMEWORK DESK ---
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "logged_email" not in st.session_state:
-    st.session_state.logged_email = ""
+if "authenticated" not in st.session_state: st.session_state.authenticated = False
+if "logged_email" not in st.session_state: st.session_state.logged_email = ""
 
 st.set_page_config(page_title="St. Mary's Integrated Portal", page_icon="🏫", layout="wide")
 
 if not st.session_state.authenticated:
     st.markdown("<h2 style='text-align: center;'>🔐 St. Mary's Central Achievements Gateway</h2>", unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns([1, 1.5, 1])
+    _, col_l2, _ = st.columns([1, 1.5, 1])
     with col_l2:
         input_email = st.text_input("College Email Address").strip().lower()
         input_password = st.text_input("Password", type="password")
         if st.button("Sign In", type="primary", use_container_width=True):
             if input_email in FACULTY_DIRECTORY:
-                secret_key_name = FACULTY_DIRECTORY[input_email]["secret_key"]
-                correct_password = st.secrets.get(secret_key_name, "welcome@2026")
-                if input_password == correct_password:
-                    st.session_state.authenticated = True
-                    st.session_state.logged_email = input_email
+                if input_password == st.secrets.get(FACULTY_DIRECTORY[input_email]["secret_key"], "welcome@2026"):
+                    st.session_state.authenticated, st.session_state.logged_email = True, input_email
                     st.rerun()
-                else:
-                    st.error("Invalid credentials entry.")
-            else:
-                st.error("Email address not authorized inside profile system.")
+                else: st.error("Invalid credentials entry.")
+            else: st.error("Email address not authorized inside profile system.")
     st.stop()
 
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
@@ -285,43 +241,29 @@ with tab_submit:
     ])
     
     if classification != "-- Select Sub-Ledger Direction --":
-        if "Research Database" in classification:
-            target_sheet = "Research_Database"
-            specific_category = "Research"
+        if "Research Database" in classification: target_sheet, specific_category = "Research_Database", "Research"
         elif "Faculty Profiles" in classification:
             target_sheet = "Faculty_Achievements"
-            specific_category = st.selectbox("Sub-Category Type", [
-                "Certification/Course", 
-                "Presentation/Resource Person",
-                "Doctoral Milestone", 
-                "Award/Honor"
-            ])
-        else:
-            target_sheet = "Student_Activities"
-            specific_category = "Institutional Contribution"
+            specific_category = st.selectbox("Sub-Category Type", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
+        else: target_sheet, specific_category = "Student_Activities", "Institutional Contribution"
 
         if "Research Database" not in classification:
             st.markdown("### 📝 Required Formatting Helper")
-            
-            if specific_category == "Certification/Course":
+            if specific_category == "Certification/Course": 
                 st.warning("**Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].`")
-                st.info("**Example:** `Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically \"Mastering Research Reviews and Meta-Analysis\"`")
-            
-            elif specific_category == "Presentation/Resource Person":
-                st.warning("**Format (Resource Person):** `[Name], [Role: e.g., Guest Speaker/Judge/Facilitator], \"[Topic/Title],\" [Organizing Event Name/Department/Institution], [Date].`")
-                st.info("**Example:** `Dr. C. Kusuma Reddy acted as a Resource Person and conducted a Department Colloquium on GST Types and Returns.`")
-            
-            elif specific_category == "Doctoral Milestone":
+                st.info("**Example:** `Mr. MSS Roy successfully completed an 8-week NPTEL certification course in \"Advanced Corporate Governance\" with an Elite Silver Elite Medal, organized by IIT Madras.`")
+            elif specific_category == "Presentation/Resource Person": 
+                st.warning("**Format:** `[Name], [Role: Guest Speaker/Judge/Facilitator], \"[Topic/Title],\" [Organizing Event Name/Department/Institution], [Date].`")
+                st.info("**Example:** `Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on \"Emerging Trends in Literary Criticism\" for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.`")
+            elif specific_category == "Doctoral Milestone": 
                 st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
-                st.info("**Example:** `Ms. Shanti has successfully completed her PHD thesis on...`")
-            
-            elif specific_category == "Award/Honor":
+                st.info("**Example:** `Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled \"A Comprehensive Evaluation of Cloud Workloads\" at Osmania University.`")
+            elif specific_category == "Award/Honor": 
                 st.warning("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")
-                st.info("**Example:** `Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the \"Foundation Level\" by the Ministry of Education`")
-            
-            elif specific_category == "Institutional Contribution":
+                st.info("**Example:** `Dr. Deepthi Priya was conferred with the \"Best Faculty Researcher Award 2026\" by the Institute of Scholar Recognitions on May 12, 2026.`")
+            elif specific_category == "Institutional Contribution": 
                 st.warning("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")
-                st.info("**Example:** `The Department of Commerce hosted the \"IPR Diaries\" event, where first-year students delivered presentations on Intellectual Property Rights`")
+                st.info("**Example:** `The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled \"Eco-Innovate 2026\" for undergraduate students of regional colleges on April 22, 2026.`")
 
         with st.form("achievement_universal_form", clear_on_submit=True):
             uploaded_file = st.file_uploader("Upload Supporting Verification Document")
@@ -330,55 +272,30 @@ with tab_submit:
                 f_cat = st.selectbox("Category/ Research Type", ["Paper publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
                 j_type = st.selectbox("Journal / Event Type", ["UGC Care listed", "Scopus", "Pubmed", "Peer Reviewed", "Conference", "Other", "NA"])
                 title_text = st.text_input("Title of Paper / Book / Topic")
-                duration_dates = st.text_input("Date Span Text (e.g., June 10-14, 2026 / Single Day: June 17, 2026)")
-                pub_url = st.text_input("Publication / Event URL (If applicable)")
+                duration_dates = st.text_input("Date Span Text (e.g., June 10-14, 2026 / June 17, 2026)")
+                pub_url = st.text_input("Publication / Event URL")
                 pub_name = st.text_input("Publisher Name / Journal Name / Conference Name")
-                pub_scope = st.selectbox("Publisher Scope (For books/papers)", ["International", "National", "NA"])
+                pub_scope = st.selectbox("Publisher Scope", ["International", "National", "NA"])
                 conf_scope = st.selectbox("Conference / Event Scope", ["International", "National", "State", "Institutional", "NA"])
                 org_body = st.text_input("Organizing/Conducting Body")
-                isbn_issn = st.text_input("ISSN/ISBN Number (If applicable)")
+                isbn_issn = st.text_input("ISSN/ISBN Number")
                 
-                submit_log = st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary")
-                if submit_log:
+                if st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary"):
                     creds = get_google_credentials()
                     drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
-                    
-                    new_row = [
-                        current_faculty_name,
-                        form_dept,
-                        f_cat,
-                        j_type,
-                        title_text,
-                        drive_link,
-                        duration_dates,
-                        pub_url,
-                        pub_name,
-                        pub_scope,
-                        conf_scope,
-                        org_body,
-                        isbn_issn,
-                        form_month
-                    ]
-                    
+                    new_row = [current_faculty_name, form_dept, f_cat, j_type, title_text, drive_link, duration_dates, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, form_month]
                     append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
-                    st.success("🎉 Structured Research Entry compiled into database ledger and perfectly sorted by department hierarchy!")
-                    
+                    st.success("🎉 Structured Research Entry compiled into database ledger and perfectly sorted!")
             else:
-                narrative_input = st.text_area("Enter Achievement Narrative Text Statement String", placeholder="Write your paragraph matching the sample pattern display block above...")
-                
-                submit_log = st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary")
-                if submit_log:
-                    if not narrative_input.strip():
-                        st.error("Input Error: The achievement narrative text statement block cannot be left empty.")
+                narrative_input = st.text_area("Enter Achievement Narrative Text Statement String")
+                if st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary"):
+                    if not narrative_input.strip(): st.error("Input Error: The narrative text block cannot be left empty.")
                     else:
                         creds = get_google_credentials()
                         drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
-                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        
-                        new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
-                        
+                        new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
                         append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
-                        st.success(f"🎉 Achievement string appended to the `{target_sheet}` ledger and perfectly sorted by department hierarchy!")
+                        st.success(f"🎉 Achievement string appended to `{target_sheet}` database ledger and sorted!")
 
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
@@ -392,8 +309,6 @@ with tab_document:
         with st.spinner("Assembling structured records from sheets..."):
             docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
             file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
-            
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [DEPARTMENT_FOLDERS[view_dept]], creds)
-            
             st.success(f"🎯 Document synchronized into your Department Drive folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
