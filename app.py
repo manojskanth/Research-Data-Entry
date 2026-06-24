@@ -71,11 +71,11 @@ def get_google_credentials():
 
 def styled_block(format_text, example_text):
     st.markdown(f"""
-    <div style="background-color: #E6EBF5; padding: 12px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #B0C4DE;">
-        <b style="color: #2F4F4F;">Format:</b> <span style="color: #1A237E; font-weight: bold;">{format_text}</span>
+    <div style="background-color: #FFFACD; padding: 10px; border-radius: 5px; margin-bottom: 5px; border: 1px solid #FFD700;">
+        <b style="color: black;">Format:</b> <span style="color: blue; font-weight: bold;">{format_text}</span>
     </div>
-    <div style="background-color: #E8F5E9; padding: 12px; border-radius: 6px; margin-top: 8px; border-left: 6px solid #2E7D32;">
-        <b style="color: #1B5E20;">Example:</b> <span style="color: #0D47A1; font-weight: 600;">{example_text}</span>
+    <div style="background-color: #90EE90; padding: 10px; border-radius: 5px; margin-top: 5px; border-left: 5px solid blue;">
+        <b style="color: black;">Example:</b> <span style="color: blue; font-weight: 900;">{example_text}</span>
     </div>
     """, unsafe_allow_html=True)
 
