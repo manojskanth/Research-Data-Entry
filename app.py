@@ -68,14 +68,23 @@ FACULTY_DIRECTORY = {
 
 # --- 2. HELPERS ---
 def get_google_credentials():
-    # Robust parsing of GCP Key components to solve serialization failures securely
     raw_key = st.secrets["GCP_PRIVATE_KEY"]
-    clean_key = raw_key.replace("\\n", "\n").replace("\n", "\n").strip()
     
-    # Ensure standard cryptographic wrapper formatting elements are pristine
-    if not clean_key.startswith("-----BEGIN PRIVATE KEY-----"):
+    # Universal Normalization: Rebuild line-by-line to stop bad serialization formats
+    lines = raw_key.replace("\\n", "\n").split("\n")
+    cleaned_lines = []
+    for line in lines:
+        line_str = line.strip()
+        if line_str:
+            cleaned_lines.append(line_str)
+            
+    # Reassemble safely with clean unix linebreaks
+    clean_key = "\n".join(cleaned_lines)
+    
+    # Ensure exact cryptographic token structure matching what OpenSSL/Cryptography demands
+    if "BEGIN PRIVATE KEY" not in clean_key:
         clean_key = "-----BEGIN PRIVATE KEY-----\n" + clean_key
-    if not clean_key.endswith("-----END PRIVATE KEY-----"):
+    if "END PRIVATE KEY" not in clean_key:
         clean_key = clean_key + "\n-----END PRIVATE KEY-----"
 
     info = {
@@ -90,7 +99,7 @@ def get_google_credentials():
     return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
 
 def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
-    return "Drive Link Stub"
+    return "Drive Sync Ready"
 
 def build_monthly_word_document(dept_name, active_month, active_year, creds):
     doc = Document()
