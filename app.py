@@ -70,21 +70,25 @@ FACULTY_DIRECTORY = {
 def get_google_credentials():
     raw_key = st.secrets["GCP_PRIVATE_KEY"]
     
-    # Handle structural escapes and ensure all variations of literal newline markers are fully evaluated
+    # 1. Normalize linebreaks completely
     normalized_key = raw_key.replace("\\n", "\n").replace("\n", "\n").strip()
     
-    # Separate headers from key body to normalize bad inner spaces or double-line break gaps
+    # 2. Extract key body cleanly without wrapping headers
     key_body = normalized_key
     if "-----BEGIN PRIVATE KEY-----" in key_body:
         key_body = key_body.split("-----BEGIN PRIVATE KEY-----")[-1]
     if "-----END PRIVATE KEY-----" in key_body:
         key_body = key_body.split("-----END PRIVATE KEY-----")[0]
         
-    # Standardize space layout by extracting individual alphanumeric segments of the core cryptographic hash
+    # 3. Clean up inner spacing issues
     key_chunks = [chunk.strip() for chunk in key_body.split() if chunk.strip()]
     reconstructed_body = "\n".join(key_chunks)
     
-    # Reassemble wrapped pristine PEM cryptographic string block
+    # 4. Final fallback structural check: If the key structure is linear/flat, group into 64-char block lines
+    if "\n" not in reconstructed_body or len(key_chunks) < 5:
+        flat_str = "".join(key_chunks)
+        reconstructed_body = "\n".join(flat_str[i:i+64] for i in range(0, len(flat_str), 64))
+    
     clean_key = f"-----BEGIN PRIVATE KEY-----\n{reconstructed_body}\n-----END PRIVATE KEY-----\n"
 
     info = {
