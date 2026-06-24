@@ -95,7 +95,7 @@ def get_google_credentials():
     try:
         raw_key = st.secrets["GCP_PRIVATE_KEY"]
         
-        # Splits multi-line string text blocks, trims spaces, and drops empty list artifacts
+        # Splits multi-line string text blocks, trims spaces, and drops empty list artifacts automatically
         cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
         sanitized_key = "\n".join(cleaned_lines)
         
