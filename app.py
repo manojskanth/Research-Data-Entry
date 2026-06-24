@@ -93,21 +93,15 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        raw_key = st.secrets["GCP_PRIVATE_KEY"]
+        # PULL THE PURE JSON TEXT STRING DIRECTLY
+        creds_json_string = st.secrets["GCP_CREDS_JSON"]
+        info_matrix = json.loads(creds_json_string)
         
-        # SELF-CLEANING SANITIZER: Splits lines, trims white-spaces, drops empty padding items
+        # BULLETPROOF RE-CONSTRUCTION: Instantly clean up hidden carriage issues from the key block
+        raw_key = info_matrix["private_key"]
         cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
-        sanitized_key = "\n".join(cleaned_lines)
+        info_matrix["private_key"] = "\n".join(cleaned_lines)
         
-        info_matrix = {
-            "type": st.secrets["GCP_TYPE"],
-            "project_id": st.secrets["GCP_PROJECT_ID"],
-            "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": sanitized_key,
-            "client_email": st.secrets["GCP_CLIENT_EMAIL"],
-            "client_id": st.secrets["GCP_CLIENT_ID"],
-            "token_uri": st.secrets["GCP_TOKEN_URI"]
-        }
         return service_account.Credentials.from_service_account_info(
             info_matrix, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         )
