@@ -116,6 +116,7 @@ with tab_submit:
             with st.form("research_db_form", clear_on_submit=True):
                 title = st.text_input("Title*")
                 org = st.text_input("Organised By/Journal Name*")
+                
                 if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
                     index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care", "Scopus", "PubMed", "ABDC", "SCIE", "Embase", "Peer Reviewed", "DOAJ", "Other"])
                     issn = st.text_input("ISSN/ISBN Number*")
@@ -123,24 +124,32 @@ with tab_submit:
                 elif r_type in ["Paper Presentation", "FDP", "Workshop"]:
                     date_span = st.text_input("Date Span*")
                     scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
+                
                 collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                
                 if st.form_submit_button("Commit Entry"):
                     if not upload: st.error("Verification document is mandatory!")
                     elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
                     elif not title or not org: st.error("Title and Organisation are mandatory!")
+                    elif r_type in ["Paper Publication", "Book Chapter", "Full Book"] and (not issn or not url): st.error("ISSN and URL are mandatory!")
                     else: st.success("Research entry submitted!")
 
         elif classification == "🏆 Faculty Profiles & Milestones":
             subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
+            
             if subtype == "Certification/Course": 
-                st.info("**Format:** [Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade]. \n**Example:** Mr. Roy attended a 3-day International Workshop focused on advanced research techniques.")
+                st.write("**Format:** [Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal]")
+                st.write("**Example:** Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically 'Mastering Research Reviews and Meta-Analysis'.")
             elif subtype == "Presentation/Resource Person": 
-                st.info("**Format:** [Name], [Role: e.g., Presenter/Judge/Facilitator], [Topic/Title], [Event Name], [Date]. \n**Example:** Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return.")
+                st.write("**Format:** [Name], [Role: e.g., Presenter/Judge/Facilitator], [Topic/Title], [Event Name/Department], [Date]")
+                st.write("**Example:** Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return.")
             elif subtype == "Doctoral Milestone": 
-                st.info("**Format:** [Name], [Milestone Achieved], [Research Topic], [University], [Date]. \n**Example:** Ms. Shanti has successfully completed her PHD thesis.")
+                st.write("**Format:** [Name], [Milestone Achieved], [Research Topic], [University/Institution], [Date]")
+                st.write("**Example:** Ms. Shanti has successfully completed her PHD thesis.")
             elif subtype == "Award/Honor": 
-                st.info("**Format:** [Name], [Title of Award/Recognition], [Awarding Body], [Date]. \n**Example:** Dr. Vigneshwari K was officially recognized as an Innovation Ambassador.")
+                st.write("**Format:** [Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date]")
+                st.write("**Example:** Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the 'Foundation Level' by the Ministry of Education.")
             
             with st.form("faculty_form", clear_on_submit=True):
                 st.text_area("Achievement Narrative*")
@@ -150,7 +159,8 @@ with tab_submit:
                     else: st.success("Profile submitted!")
 
         elif classification == "👥 Departmental & Student Contributions":
-            st.info("**Format:** [Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date]. \n**Example:** The Department of Commerce hosted the 'IPR Diaries' event for first-year students.")
+            st.write("**Format:** [Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date]")
+            st.write("**Example:** The Department of Commerce hosted the 'IPR Diaries' event, where first-year students delivered presentations on Intellectual Property Rights.")
             with st.form("student_form", clear_on_submit=True):
                 st.text_area("Description*")
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
