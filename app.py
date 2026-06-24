@@ -8,11 +8,12 @@ import json
 from docx import Document
 from docx.shared import Pt
 
-# --- 1. CONFIGURATION ---
+# --- 1. CONFIGURATION & FULL DIRECTORY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
 
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
@@ -61,9 +62,9 @@ FACULTY_DIRECTORY = {
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"}
 }
 
-# --- FUNCTIONS ---
+# --- 2. GOOGLE CREDENTIALS (Hardened) ---
 def get_google_credentials():
-    clean_key = st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n')
+    clean_key = st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n")
     info = {
         "type": st.secrets["GCP_TYPE"], "project_id": st.secrets["GCP_PROJECT_ID"],
         "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"], "private_key": clean_key,
@@ -72,14 +73,16 @@ def get_google_credentials():
     }
     return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
 
-# --- UI & LOGIC ---
-st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide")
+# --- 3. UI FRAMEWORK ---
+st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
 
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
 
 if not st.session_state.authenticated:
-    email = st.text_input("Email").lower()
+    st.image("logo.png", width=100)
+    st.markdown("## 🔐 St. Mary's Central Achievements Gateway")
+    email = st.text_input("College Email").lower()
     pw = st.text_input("Password", type="password")
     if st.button("Sign In"):
         if email in FACULTY_DIRECTORY and pw == st.secrets.get(FACULTY_DIRECTORY[email]["secret_key"], "welcome@2026"):
@@ -89,43 +92,43 @@ if not st.session_state.authenticated:
         else: st.error("Invalid credentials.")
     st.stop()
 
-tab1, tab2, tab3 = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
+st.image("logo.png", width=100)
+tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
 
-with tab3:
+with tab_admin:
     if st.session_state.logged_email == "research@stmaryscollege.in":
-        st.session_state.admin_enabled = st.toggle("Enable Data Entry", value=st.session_state.admin_enabled)
+        st.subheader("Admin Control Desk")
+        st.session_state.admin_enabled = st.toggle("Enable Data Entry for Users", value=st.session_state.admin_enabled)
     else: st.warning("Unauthorized access.")
 
-with tab1:
+with tab_submit:
     if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-        st.error("Data entry is disabled.")
+        st.error("Data entry is currently disabled by the Administrator.")
     else:
-        cat = st.selectbox("Select Classification", ["--- Select ---", "🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"])
-        if cat == "🔬 Research Database":
-            with st.form("research_form"):
+        classification = st.selectbox("Select Classification", ["🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"])
+        
+        with st.form("main_form", clear_on_submit=True):
+            if classification == "🔬 Research Database":
                 r_type = st.selectbox("Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
                 title = st.text_input("Title")
                 url = st.text_input("URL")
                 issn = st.text_input("ISSN/ISBN")
                 collab = st.checkbox("Collaboration involved?")
-                collab_name = st.text_input("Collaborator Name") if collab else ""
-                upload = st.file_uploader("Verification Upload")
-                if st.form_submit_button("Submit Research"):
-                    if collab and not collab_name: st.error("Enter collaborator name!")
-                    elif not upload: st.error("Upload required!")
-                    else: st.success("Research submitted!")
-        elif cat == "🏆 Faculty Profiles & Milestones":
-            with st.form("faculty_form"):
+                collab_names = st.text_input("Enter Collaborator Names") if collab else ""
+            else:
                 st.text_area("Achievement Narrative")
-                upload = st.file_uploader("Verification Upload")
-                if st.form_submit_button("Submit Profile"): st.success("Submitted!")
-        elif cat == "👥 Departmental & Student Contributions":
-            with st.form("student_form"):
-                st.text_area("Description")
-                upload = st.file_uploader("Verification Upload")
-                if st.form_submit_button("Submit Contribution"): st.success("Submitted!")
 
-with tab2:
+            upload = st.file_uploader("Upload Verification Document (Mandatory)")
+            
+            if st.form_submit_button("Commit Entry to Central Cloud Repository"):
+                if classification == "🔬 Research Database" and collab and not collab_names:
+                    st.error("Collaborator names are mandatory!")
+                elif not upload:
+                    st.error("Verification document upload is mandatory!")
+                else:
+                    st.success("Entry submitted successfully!")
+
+with tab_document:
     st.subheader("Monthly Achievement Generator")
     if st.button("🏗️ Construct Automated Monthly Document Package"):
         st.info("Generating report...")
