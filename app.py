@@ -93,11 +93,11 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # PULL THE PURE JSON TEXT STRING DIRECTLY
+        # Pull the pure JSON string directly from st.secrets matrix
         creds_json_string = st.secrets["GCP_CREDS_JSON"]
         info_matrix = json.loads(creds_json_string)
         
-        # BULLETPROOF RE-CONSTRUCTION: Instantly clean up hidden carriage issues from the key block
+        # Split lines, trim whitespace, and join safely with valid block newlines
         raw_key = info_matrix["private_key"]
         cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
         info_matrix["private_key"] = "\n".join(cleaned_lines)
