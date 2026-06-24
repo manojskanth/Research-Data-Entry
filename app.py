@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 import io
 from docx import Document
 
-# --- 1. CONFIG & FACULTY DIRECTORY ---
+# --- 1. CONFIG & FULL FACULTY DIRECTORY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
@@ -58,7 +58,7 @@ FACULTY_DIRECTORY = {
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"}
 }
 
-# --- 2. AUTH ---
+# --- 2. HELPERS ---
 def get_google_credentials():
     clean_key = st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n")
     info = {
@@ -68,6 +68,16 @@ def get_google_credentials():
         "token_uri": st.secrets["GCP_TOKEN_URI"]
     }
     return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+
+def styled_block(format_text, example_text):
+    st.markdown(f"""
+    <div style="background-color: #FFFACD; padding: 10px; border-radius: 5px; margin-bottom: 5px; border: 1px solid #FFD700;">
+        <b style="color: black;">Format:</b> <span style="color: blue; font-weight: bold;">{format_text}</span>
+    </div>
+    <div style="background-color: #90EE90; padding: 10px; border-radius: 5px; margin-top: 5px; border-left: 5px solid blue;">
+        <b style="color: black;">Example:</b> <span style="color: blue; font-weight: 900;">{example_text}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- 3. UI ---
 st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
@@ -92,12 +102,12 @@ tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "�
 
 with tab_admin:
     if st.session_state.logged_email == "research@stmaryscollege.in":
-        st.session_state.admin_enabled = st.toggle("Enable Data Entry", value=st.session_state.admin_enabled)
+        st.session_state.admin_enabled = st.toggle("Enable Data Entry for Users", value=st.session_state.admin_enabled)
     else: st.warning("Unauthorized access.")
 
 with tab_submit:
     if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-        st.error("Data entry is disabled.")
+        st.error("Data entry is currently disabled by the Administrator.")
     else:
         st.subheader("Add Monthly Achievement Entry")
         col1, col2, col3 = st.columns(3)
@@ -129,27 +139,21 @@ with tab_submit:
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                 
                 if st.form_submit_button("Commit Entry"):
-                    if not upload: st.error("Verification document is mandatory!")
+                    if not upload: st.error("Verification mandatory!")
                     elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
                     elif not title or not org: st.error("Title and Organisation are mandatory!")
-                    elif r_type in ["Paper Publication", "Book Chapter", "Full Book"] and (not issn or not url): st.error("ISSN and URL are mandatory!")
                     else: st.success("Research entry submitted!")
 
         elif classification == "🏆 Faculty Profiles & Milestones":
             subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
-            
             if subtype == "Certification/Course": 
-                st.write("**Format:** [Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal]")
-                st.write("**Example:** Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically 'Mastering Research Reviews and Meta-Analysis'.")
+                styled_block("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal]", "Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically 'Mastering Research Reviews and Meta-Analysis'.")
             elif subtype == "Presentation/Resource Person": 
-                st.write("**Format:** [Name], [Role: e.g., Presenter/Judge/Facilitator], [Topic/Title], [Event Name/Department], [Date]")
-                st.write("**Example:** Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return.")
+                styled_block("[Name], [Role: e.g., Presenter/Judge/Facilitator], [Topic/Title], [Event Name/Department], [Date]", "Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return.")
             elif subtype == "Doctoral Milestone": 
-                st.write("**Format:** [Name], [Milestone Achieved], [Research Topic], [University/Institution], [Date]")
-                st.write("**Example:** Ms. Shanti has successfully completed her PHD thesis.")
+                styled_block("[Name], [Milestone Achieved], [Research Topic], [University/Institution], [Date]", "Ms. Shanti has successfully completed her PHD thesis.")
             elif subtype == "Award/Honor": 
-                st.write("**Format:** [Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date]")
-                st.write("**Example:** Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the 'Foundation Level' by the Ministry of Education.")
+                styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date]", "Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the 'Foundation Level' by the Ministry of Education.")
             
             with st.form("faculty_form", clear_on_submit=True):
                 st.text_area("Achievement Narrative*")
@@ -159,8 +163,7 @@ with tab_submit:
                     else: st.success("Profile submitted!")
 
         elif classification == "👥 Departmental & Student Contributions":
-            st.write("**Format:** [Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date]")
-            st.write("**Example:** The Department of Commerce hosted the 'IPR Diaries' event, where first-year students delivered presentations on Intellectual Property Rights.")
+            styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date]", "The Department of Commerce hosted the 'IPR Diaries' event, where first-year students delivered presentations on Intellectual Property Rights.")
             with st.form("student_form", clear_on_submit=True):
                 st.text_area("Description*")
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
