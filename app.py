@@ -58,7 +58,7 @@ FACULTY_DIRECTORY = {
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"}
 }
 
-# --- 2. AUTH & HELPERS ---
+# --- 2. AUTH ---
 def get_google_credentials():
     clean_key = st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n")
     info = {
@@ -76,7 +76,6 @@ if "authenticated" not in st.session_state: st.session_state.authenticated = Fal
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
 
 if not st.session_state.authenticated:
-    st.image("logo.png", width=100)
     st.markdown("## 🔐 St. Mary's Central Achievements Gateway")
     email = st.text_input("College Email").lower()
     pw = st.text_input("Password", type="password")
@@ -111,7 +110,6 @@ with tab_submit:
                 title = st.text_input("Title*")
                 org = st.text_input("Organised By/Journal Name*")
                 
-                # Dynamic Logic
                 if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
                     issn = st.text_input("ISSN/ISBN Number*")
                     url = st.text_input("URL*")
@@ -119,20 +117,17 @@ with tab_submit:
                     date_span = st.text_input("Date Span*")
                     scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
                 
-                # Collaboration Logic
-                collab_check = st.checkbox("Collaboration involved?", key="collab_box")
-                collab_container = st.empty()
-                collab_names = collab_container.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
+                collab_check = st.checkbox("Collaboration involved?", key="collab_box", on_change=st.rerun)
+                collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
                 
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                 
                 if st.form_submit_button("Submit"):
-                    # Validation
                     if not upload: st.error("Verification document is mandatory!")
                     elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names are mandatory!")
                     elif not title or not org: st.error("Title and Organisation are mandatory!")
                     elif r_type in ["Paper Publication", "Book Chapter", "Full Book"] and (not issn or not url): st.error("ISSN and URL are mandatory!")
-                    elif r_type in ["Paper Presentation", "FDP", "Workshop"] and (not date_span): st.error("Date Span is mandatory!")
+                    elif r_type in ["Paper Presentation", "FDP", "Workshop"] and not date_span: st.error("Date Span is mandatory!")
                     else: st.success(f"{r_type} submitted successfully!")
 
         elif classification == "🏆 Faculty Profiles & Milestones":
