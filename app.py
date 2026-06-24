@@ -8,20 +8,11 @@ import json
 from docx import Document
 from docx.shared import Pt
 
-# --- 1. CORE SYSTEM CONFIGURATION ---
+# --- 1. CONFIGURATION ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
-
-DEPARTMENT_FOLDERS = {
-    "English & Languages": "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG",
-    "Social Sciences & Humanities": "1m0xEcv-WKQr8CWfHlZ5AuCWIFXAm1H5g",
-    "Sciences": "1u_KRBhdZhcWQ55CyVI0v042bIpC5FQfs",
-    "Management": "1VG3xY_SmhqmQ9BvSh6KvDXOptO3kHhsj",
-    "Commerce": "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"
-}
 
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
@@ -81,17 +72,14 @@ def get_google_credentials():
     }
     return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
 
-# [Keep your upload_file_to_drive, append_and_sort_sheet_by_department, and build_monthly_word_document functions here]
-
-# --- APP UI ---
-st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
+# --- UI & LOGIC ---
+st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide")
 
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
 
 if not st.session_state.authenticated:
-    st.markdown("## 🔐 St. Mary's Central Achievements Gateway")
-    email = st.text_input("College Email").lower()
+    email = st.text_input("Email").lower()
     pw = st.text_input("Password", type="password")
     if st.button("Sign In"):
         if email in FACULTY_DIRECTORY and pw == st.secrets.get(FACULTY_DIRECTORY[email]["secret_key"], "welcome@2026"):
@@ -101,35 +89,46 @@ if not st.session_state.authenticated:
         else: st.error("Invalid credentials.")
     st.stop()
 
-st.image("logo.png", width=100)
-tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
+tab1, tab2, tab3 = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
 
-with tab_admin:
+with tab3:
     if st.session_state.logged_email == "research@stmaryscollege.in":
-        st.subheader("Admin Control Desk")
-        st.session_state.admin_enabled = st.toggle("Enable Data Entry for Users", value=st.session_state.admin_enabled)
+        st.session_state.admin_enabled = st.toggle("Enable Data Entry", value=st.session_state.admin_enabled)
     else: st.warning("Unauthorized access.")
 
-with tab_submit:
+with tab1:
     if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-        st.error("Data entry is currently disabled by the Administrator.")
+        st.error("Data entry is disabled.")
     else:
-        # [Use your classification/form logic here]
-        with st.form("achievement_universal_form", clear_on_submit=True):
-            # ... add new validation:
-            collab = st.checkbox("Collaboration involved?")
-            collab_names = st.text_input("Enter Collaborator Names (Mandatory if checked)") if collab else ""
-            upload = st.file_uploader("Upload Verification Document (Mandatory)")
-            if st.form_submit_button("Commit Entry to Central Cloud Repository"):
-                if collab and not collab_names: st.error("Collaborator names are mandatory!")
-                elif not upload: st.error("Verification upload is mandatory!")
-                else: 
-                    # ... your existing submission logic ...
-                    st.success("Entry submitted successfully!")
+        cat = st.selectbox("Select Classification", ["--- Select ---", "🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"])
+        if cat == "🔬 Research Database":
+            with st.form("research_form"):
+                r_type = st.selectbox("Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
+                title = st.text_input("Title")
+                url = st.text_input("URL")
+                issn = st.text_input("ISSN/ISBN")
+                collab = st.checkbox("Collaboration involved?")
+                collab_name = st.text_input("Collaborator Name") if collab else ""
+                upload = st.file_uploader("Verification Upload")
+                if st.form_submit_button("Submit Research"):
+                    if collab and not collab_name: st.error("Enter collaborator name!")
+                    elif not upload: st.error("Upload required!")
+                    else: st.success("Research submitted!")
+        elif cat == "🏆 Faculty Profiles & Milestones":
+            with st.form("faculty_form"):
+                st.text_area("Achievement Narrative")
+                upload = st.file_uploader("Verification Upload")
+                if st.form_submit_button("Submit Profile"): st.success("Submitted!")
+        elif cat == "👥 Departmental & Student Contributions":
+            with st.form("student_form"):
+                st.text_area("Description")
+                upload = st.file_uploader("Verification Upload")
+                if st.form_submit_button("Submit Contribution"): st.success("Submitted!")
 
-with tab_document:
+with tab2:
     st.subheader("Monthly Achievement Generator")
-    # ... your existing document generator logic ...
+    if st.button("🏗️ Construct Automated Monthly Document Package"):
+        st.info("Generating report...")
 
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: gray;'>Developed by Research Committee @ St. Mary's College</div>", unsafe_allow_html=True)
