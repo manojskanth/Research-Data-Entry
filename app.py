@@ -89,11 +89,56 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
 
 def styled_block(format_text, example_text):
     st.markdown(f"""
-    <div style="background-color: #E6EBF5; padding: 12px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #B0C4DE;">
-        <b style="color: #2F4F4F;">Format:</b> <span style="color: #1A237E; font-weight: bold;">{format_text}</span>
-    </div>
-    <div style="background-color: #E8F5E9; padding: 12px; border-radius: 6px; margin-top: 8px; border-left: 6px solid #2E7D32;">
-        <b style="color: #1B5E20;">Example:</b> <span style="color: #0D47A1; font-weight: 600;">{example_text}</span>
+    <div style="
+        background-color: #FFFFFF; 
+        padding: 16px; 
+        border-radius: 8px; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+        border: 1px solid #EAECEF; 
+        margin-bottom: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    ">
+        <div style="display: flex; align-items: flex-start; margin-bottom: 14px;">
+            <div style="
+                background-color: #E8EAF6; 
+                color: #1A237E; 
+                font-weight: 700; 
+                font-size: 11px; 
+                text-transform: uppercase; 
+                letter-spacing: 0.8px; 
+                padding: 4px 8px; 
+                border-radius: 4px; 
+                margin-right: 12px;
+                min-width: 70px;
+                text-align: center;
+                border-left: 3px solid #1A237E;
+            ">Format</div>
+            <div style="color: #2C3E50; font-size: 14px; line-height: 1.5; font-weight: 500;">
+                {format_text}
+            </div>
+        </div>
+        
+        <div style="height: 1px; background-color: #F1F3F5; margin: 12px 0;"></div>
+        
+        <div style="display: flex; align-items: flex-start;">
+            <div style="
+                background-color: #E8F5E9; 
+                color: #1B5E20; 
+                font-weight: 700; 
+                font-size: 11px; 
+                text-transform: uppercase; 
+                letter-spacing: 0.8px; 
+                padding: 4px 8px; 
+                border-radius: 4px; 
+                margin-right: 12px;
+                min-width: 70px;
+                text-align: center;
+                border-left: 3px solid #2E7D32;
+            ">Example</div>
+            <div style="color: #455A64; font-size: 14px; line-height: 1.5; font-style: italic; font-weight: 500;">
+                {example_text}
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
