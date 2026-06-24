@@ -93,17 +93,12 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        raw_key = st.secrets["GCP_PRIVATE_KEY"]
-        
-        # FIXED CHECK: Normalizes physical line breaks from the literal TOML block securely
-        cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
-        sanitized_key = "\n".join(cleaned_lines)
-        
+        raw_key = st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n')
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
             "project_id": st.secrets["GCP_PROJECT_ID"],
             "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": sanitized_key,
+            "private_key": raw_key,
             "client_email": st.secrets["GCP_CLIENT_EMAIL"],
             "client_id": st.secrets["GCP_CLIENT_ID"],
             "token_uri": st.secrets["GCP_TOKEN_URI"]
@@ -276,4 +271,66 @@ with tab_submit:
                 st.info("**Example:** `Mr. MSS Roy successfully completed an 8-week NPTEL certification course in \"Advanced Corporate Governance\" with an Elite Silver Elite Medal, organized by IIT Madras.`")
             elif specific_category == "Presentation/Resource Person": 
                 st.warning("**Format:** `[Name], [Role: Guest Speaker/Judge/Facilitator], \"[Topic/Title],\" [Organizing Event Name/Department/Institution], [Date].`")
-                st.info("**Example:** `Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on \"Emerging Trends in Literary Criticism\" for the National Colloquium organized by the Department of English, St. Mary's College on June 15,
+                # Broken down cleanly to prevent syntax line-wrap truncations
+                st.info(
+                    "**Example:** `Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on "
+                    "\"Emerging Trends in Literary Criticism\" for the National Colloquium organized by the Department of "
+                    "English, St. Mary's College on June 15, 2026.`"
+                )
+            elif specific_category == "Doctoral Milestone": 
+                st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
+                st.info("**Example:** `Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled \"A Comprehensive Evaluation of Cloud Workloads\" at Osmania University.`")
+            elif specific_category == "Award/Honor": 
+                st.warning("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].`")
+                st.info("**Example:** `Dr. Deepthi Priya was conferred with the \"Best Faculty Researcher Award 2026\" by the Institute of Scholar Recognitions on May 12, 2026.`")
+            elif specific_category == "Institutional Contribution": 
+                st.warning("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].`")
+                st.info("**Example:** `The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled \"Eco-Innovate 2026\" for undergraduate students of regional colleges on April 22, 2026.`")
+
+        with st.form("achievement_universal_form", clear_on_submit=True):
+            uploaded_file = st.file_uploader("Upload Supporting Verification Document")
+            
+            if "Research Database" in classification:
+                f_cat = st.selectbox("Category/ Research Type", ["Paper publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
+                j_type = st.selectbox("Journal / Event Type", ["UGC Care listed", "Scopus", "Pubmed", "Peer Reviewed", "Conference", "Other", "NA"])
+                title_text = st.text_input("Title of Paper / Book / Topic")
+                duration_dates = st.text_input("Date Span Text (e.g., June 10-14, 2026 / June 17, 2026)")
+                pub_url = st.text_input("Publication / Event URL")
+                pub_name = st.text_input("Publisher Name / Journal Name / Conference Name")
+                pub_scope = st.selectbox("Publisher Scope", ["International", "National", "NA"])
+                conf_scope = st.selectbox("Conference / Event Scope", ["International", "National", "State", "Institutional", "NA"])
+                org_body = st.text_input("Organizing/Conducting Body")
+                isbn_issn = st.text_input("ISSN/ISBN Number")
+                
+                if st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary"):
+                    creds = get_google_credentials()
+                    drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
+                    new_row = [current_faculty_name, form_dept, f_cat, j_type, title_text, drive_link, duration_dates, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, form_month]
+                    append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
+                    st.success("🎉 Structured Research Entry compiled into database ledger and perfectly sorted!")
+            else:
+                narrative_input = st.text_area("Enter Achievement Narrative Text Statement String")
+                if st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary"):
+                    if not narrative_input.strip(): st.error("Input Error: The narrative text block cannot be left empty.")
+                    else:
+                        creds = get_google_credentials()
+                        drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds) if uploaded_file else "No File Linked"
+                        new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
+                        append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
+                        st.success(f"🎉 Achievement string appended to `{target_sheet}` database ledger and sorted!")
+
+with tab_document:
+    st.subheader("Central Document Engine Dashboard Workspace")
+    col_d1, col_d2, col_d3 = st.columns(3)
+    with col_d1: view_dept = st.selectbox("Target Department File Scope", DEPARTMENTS, key="vd1")
+    with col_d2: view_month = st.selectbox("Target Month Scope", MONTHS, key="vm1")
+    with col_d3: view_year = st.selectbox("Target Year Scope", ACADEMIC_YEARS, key="vy1")
+        
+    if st.button("🏗️ Construct Automated Monthly Document Package", use_container_width=True, type="primary"):
+        creds = get_google_credentials()
+        with st.spinner("Assembling structured records from sheets..."):
+            docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
+            file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
+            upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [DEPARTMENT_FOLDERS[view_dept]], creds)
+            st.success(f"🎯 Document synchronized into your Department Drive folder automatically!")
+            st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
