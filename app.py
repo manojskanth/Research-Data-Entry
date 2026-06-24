@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 import io
 from docx import Document
 
-# --- 1. CONFIG & FACULTY DIRECTORY ---
+# --- 1. CONFIG & FULL FACULTY DIRECTORY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
@@ -92,12 +92,12 @@ tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "�
 
 with tab_admin:
     if st.session_state.logged_email == "research@stmaryscollege.in":
-        st.session_state.admin_enabled = st.toggle("Enable Data Entry", value=st.session_state.admin_enabled)
+        st.session_state.admin_enabled = st.toggle("Enable Data Entry for Users", value=st.session_state.admin_enabled)
     else: st.warning("Unauthorized access.")
 
 with tab_submit:
     if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-        st.error("Data entry is disabled.")
+        st.error("Data entry is currently disabled by the Administrator.")
     else:
         st.subheader("Add Monthly Achievement Entry")
         # Global Dropdowns
@@ -113,19 +113,23 @@ with tab_submit:
         
         if classification == "🔬 Research Database":
             r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
-            collab_check = st.checkbox("Collaboration involved?", key="collab_box")
-            
             with st.form("research_db_form", clear_on_submit=True):
                 title = st.text_input("Title*")
                 org = st.text_input("Organised By/Journal Name*")
+                
+                # Dynamic Logic
                 if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
+                    index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care", "Scopus", "PubMed", "ABDC", "SCIE", "Embase", "Peer Reviewed", "DOAJ", "Other"])
                     issn = st.text_input("ISSN/ISBN Number*")
                     url = st.text_input("URL*")
                 elif r_type in ["Paper Presentation", "FDP", "Workshop"]:
                     date_span = st.text_input("Date Span*")
                     scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
                 
+                # Collaboration Logic
+                collab_check = st.checkbox("Collaboration involved?", key="collab_box")
                 collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
+                
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                 
                 if st.form_submit_button("Commit Entry to Central Cloud Repository"):
@@ -134,7 +138,7 @@ with tab_submit:
                     elif not title or not org: st.error("Title and Organisation are mandatory!")
                     elif r_type in ["Paper Publication", "Book Chapter", "Full Book"] and (not issn or not url): st.error("ISSN and URL are mandatory!")
                     elif r_type in ["Paper Presentation", "FDP", "Workshop"] and not date_span: st.error("Date Span is mandatory!")
-                    else: st.success(f"{r_type} for {form_dept} ({form_month} {form_year}) submitted!")
+                    else: st.success(f"{r_type} for {form_dept} ({form_month} {form_year}) submitted successfully!")
 
         elif classification == "🏆 Faculty Profiles & Milestones":
             with st.form("faculty_form", clear_on_submit=True):
