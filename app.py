@@ -93,12 +93,14 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
+        # Pull raw private key text string from secrets
         raw_key = st.secrets["GCP_PRIVATE_KEY"]
         
-        # SELF-CLEANING HANDSHAKE: Normalizes multi-line text variables dynamically
-        # Strips carriage returns, whitespace gaps, and drops rogue text components
-        cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
-        sanitized_key = "\n".join(cleaned_lines)
+        # ADVANCED MEMORY SCRUBBER: Re-evaluates textual backslashes, isolates discrete content lines,
+        # trims layout artifacts, and forcefully strips out hidden empty trailer variables or layout fragments
+        raw_key = raw_key.replace(r'\n', '\n').replace(r'\\n', '\n')
+        lines = [line.strip() for line in raw_key.splitlines() if line.strip()]
+        sanitized_key = "\n".join(lines)
         
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
