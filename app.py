@@ -34,9 +34,9 @@ FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
     "aditijuyal@stmaryscollege.in": {"name": "Prof. Aditi Juyal", "secret_key": "aditijuyal_pass"},
-    "maithry@stmaryscollege.in": {"name": "Dr. Maithry", "secret_key": "maithry_pass"},
-    "soumya@stmaryscollege.in": {"name": "Dr. Soumya", "secret_key": "soumya_pass"},
-    "rajita@stmaryscollege.in": {"name": "Dr. Rajita", "secret_key": "rajita_pass"},
+    "maithry@stmaryscollege.in": {"name": "Dr. Maithry Shinde", "secret_key": "maithry_pass"},
+    "soumya@stmaryscollege.in": {"name": "Dr. Soumya K", "secret_key": "soumya_pass"},
+    "rajita@stmaryscollege.in": {"name": "Dr. Rajita Anand Singh", "secret_key": "rajita_pass"},
     "manojkanth@stmaryscollege.in": {"name": "Dr. Manoj Kanth", "secret_key": "manojkanth_pass"},
     "swathi@stmaryscollege.in": {"name": "Dr. Swathi", "secret_key": "swathi_pass"},
     "padmaleela@stmaryscollege.in": {"name": "Ms. Padmaleela", "secret_key": "padmaleela_pass"},
@@ -68,15 +68,27 @@ FACULTY_DIRECTORY = {
     "nagarjuna@stmaryscollege.in": {"name": "Dr. Nagarjuna", "secret_key": "nagarjuna_pass"},
     "pavitrambika@stmaryscollege.in": {"name": "Dr. Pavitrambika", "secret_key": "pavitrambika_pass"},
     "anuradhaemani@stmaryscollege.in": {"name": "Dr. Anuradha", "secret_key": "anuradha_pass"},
-    "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"}
+    "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"},
+    # --- Roster Additions ---
+    "timee@stmaryscollege.in": {"name": "Dr. Timee Ronra Shimray", "secret_key": "timee_pass"},
+    "ismail@stmaryscollege.in": {"name": "Mr. Ismail C", "secret_key": "ismail_pass"},
+    "aksharasingh@stmaryscollege.in": {"name": "Dr. Akshara Singh", "secret_key": "akshara_pass"},
+    "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"}
 }
 
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        b64_string = st.secrets["BASE64_GCP_CREDENTIALS"]
-        decoded_bytes = base64.b64decode(b64_string)
-        info_matrix = json.loads(decoded_bytes)
+        # FIXED: Reconstructing matrix fields dynamically from individual string variables
+        info_matrix = {
+            "type": st.secrets["GCP_TYPE"],
+            "project_id": st.secrets["GCP_PROJECT_ID"],
+            "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
+            "private_key": st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n'),
+            "client_email": st.secrets["GCP_CLIENT_EMAIL"],
+            "client_id": st.secrets["GCP_CLIENT_ID"],
+            "token_uri": st.secrets["GCP_TOKEN_URI"]
+        }
         return service_account.Credentials.from_service_account_info(
             info_matrix, 
             scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -102,19 +114,16 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
     except Exception as e:
         return f"Upload Failed: {str(e)}"
 
-# --- BRAND NEW: CORE RE-SORTING ENGINE MATRIX ---
 def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, creds):
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
         
-        # 1. Fetch all existing data elements from target sheet
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000"
         ).execute()
         rows = result.get('values', [])
         
         if not rows:
-            # If completely empty workspace, write row immediately as header/first element
             sheets_service.spreadsheets().values().update(
                 spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1",
                 valueInputOption="USER_ENTERED", body={"values": [new_row]}
@@ -123,31 +132,28 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
 
         header = rows[0]
         data_rows = rows[1:]
-        data_rows.append(new_row) # Safely drop new entry directly into matrix array
+        data_rows.append(new_row)
         
-        # 2. Sort the entries using your custom organizational priority rule
         def sort_key_resolver(row):
             if len(row) <= dept_column_index:
-                return len(DEPARTMENTS) # Unknown/missing index buffer safety
+                return len(DEPARTMENTS)
             dept_name = row[dept_column_index]
             return DEPT_SORT_ORDER.get(dept_name, len(DEPARTMENTS))
 
         data_rows.sort(key=sort_key_resolver)
         sorted_matrix = [header] + data_rows
         
-        # 3. Clean up the sheet space entirely to prevent residual rows trailing underneath
         sheets_service.spreadsheets().values().clear(
             spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000"
         ).execute()
         
-        # 4. Overwrite matrix canvas fresh with ordered hierarchy structure rows block completely
         sheets_service.spreadsheets().values().update(
             spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1",
             valueInputOption="USER_ENTERED", body={"values": sorted_matrix}
         ).execute()
         
     except Exception as e:
-        st.error(f"Rearrangement Sorthing Algorithm Pipeline Failure Block: {str(e)}")
+        st.error(f"Rearrangement Sorting Algorithm Pipeline Failure Block: {str(e)}")
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(dept_name, active_month, active_year, creds):
@@ -278,7 +284,7 @@ with tab_submit:
         "👥 Departmental & Student Contributions"
     ])
     
-    if classification != "-- Select Sub-LedAF Direction --":
+    if classification != "-- Select Sub-Ledger Direction --":
         if "Research Database" in classification:
             target_sheet = "Research_Database"
             specific_category = "Research"
@@ -339,7 +345,7 @@ with tab_submit:
                     
                     new_row = [
                         current_faculty_name,
-                        form_dept, # Index 1 for Research Database sorting column routing
+                        form_dept,
                         f_cat,
                         j_type,
                         title_text,
@@ -354,7 +360,6 @@ with tab_submit:
                         form_month
                     ]
                     
-                    # Commits and sorts automatically by department
                     append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
                     st.success("🎉 Structured Research Entry compiled into database ledger and perfectly sorted by department hierarchy!")
                     
@@ -372,7 +377,6 @@ with tab_submit:
                         
                         new_row = [timestamp, form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
                         
-                        # Commits and sorts automatically by department (Department string is at index 1 for both sheets)
                         append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
                         st.success(f"🎉 Achievement string appended to the `{target_sheet}` ledger and perfectly sorted by department hierarchy!")
 
