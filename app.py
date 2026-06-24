@@ -88,62 +88,21 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     return doc_stream.getvalue()
 
 def styled_block(format_text, example_text):
-    st.markdown(f"""
-    <div style="
-        background-color: #FFFFFF; 
-        padding: 16px; 
-        border-radius: 8px; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
-        border: 1px solid #EAECEF; 
-        margin-bottom: 20px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    ">
-        <!-- Format Row -->
-        <div style="display: flex; align-items: flex-start; margin-bottom: 14px;">
-            <div style="
-                background-color: #E8EAF6; 
-                color: #1A237E; 
-                font-weight: 700; 
-                font-size: 11px; 
-                text-transform: uppercase; 
-                letter-spacing: 0.8px; 
-                padding: 4px 8px; 
-                border-radius: 4px; 
-                margin-right: 12px;
-                min-width: 70px;
-                text-align: center;
-                border-left: 3px solid #1A237E;
-            ">Format</div>
-            <div style="color: #2C3E50; font-size: 14px; line-height: 1.5; font-weight: 500;">
-                {format_text}
-            </div>
-        </div>
-        
-        <!-- Subtle Divider Line -->
-        <div style="height: 1px; background-color: #F1F3F5; margin: 12px 0;"></div>
-        
-        <!-- Example Row -->
-        <div style="display: flex; align-items: flex-start;">
-            <div style="
-                background-color: #E8F5E9; 
-                color: #1B5E20; 
-                font-weight: 700; 
-                font-size: 11px; 
-                text-transform: uppercase; 
-                letter-spacing: 0.8px; 
-                padding: 4px 8px; 
-                border-radius: 4px; 
-                margin-right: 12px;
-                min-width: 70px;
-                text-align: center;
-                border-left: 3px solid #2E7D32;
-            ">Example</div>
-            <div style="color: #455A64; font-size: 14px; line-height: 1.5; font-style: italic; font-weight: 500;">
-                {example_text}
-            </div>
-        </div>
+    # Keeping HTML completely unindented to prevent Streamlit from seeing it as a markdown code block
+    html_string = f"""
+<div style="background-color: #FFFFFF; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #EAECEF; margin-bottom: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <div style="display: flex; align-items: flex-start; margin-bottom: 14px;">
+        <div style="background-color: #E8EAF6; color: #1A237E; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 4px 8px; border-radius: 4px; margin-right: 12px; min-width: 70px; text-align: center; border-left: 3px solid #1A237E;">Format</div>
+        <div style="color: #2C3E50; font-size: 14px; line-height: 1.5; font-weight: 500;">{format_text}</div>
     </div>
-    """, unsafe_allow_html=True)
+    <div style="height: 1px; background-color: #F1F3F5; margin: 12px 0;"></div>
+    <div style="display: flex; align-items: flex-start;">
+        <div style="background-color: #E8F5E9; color: #1B5E20; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 4px 8px; border-radius: 4px; margin-right: 12px; min-width: 70px; text-align: center; border-left: 3px solid #2E7D32;">Example</div>
+        <div style="color: #455A64; font-size: 14px; line-height: 1.5; font-style: italic; font-weight: 500;">{example_text}</div>
+    </div>
+</div>
+""".strip()
+    st.markdown(html_string, unsafe_allow_html=True)
 # --- 3. UI ---
 st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
 
