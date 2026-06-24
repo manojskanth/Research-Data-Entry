@@ -93,25 +93,11 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # Extract the key and process text escape breaks safely
-        raw_key = st.secrets["GCP_PRIVATE_KEY"]
-        raw_key = raw_key.replace(r'\n', '\n').replace(r'\\n', '\n')
-        
-        # Split lines, strip padding artifacts, and drop empty string array elements
-        cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
-        sanitized_key = "\n".join(cleaned_lines)
-        
-        info_matrix = {
-            "type": st.secrets["GCP_TYPE"],
-            "project_id": st.secrets["GCP_PROJECT_ID"],
-            "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": sanitized_key,
-            "client_email": st.secrets["GCP_CLIENT_EMAIL"],
-            "client_id": st.secrets["GCP_CLIENT_ID"],
-            "token_uri": st.secrets["GCP_TOKEN_URI"]
-        }
+        # OFFICIAL NATIVE COMPLIANCE HANDSHAKE
+        # Streamlit reads the table block and injects standard escaping natively in memory
         return service_account.Credentials.from_service_account_info(
-            info_matrix, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            st.secrets["gcp_service_account"], 
+            scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         )
     except Exception as e:
         st.error(f"Ecosystem Verification Block Error: {str(e)}")
