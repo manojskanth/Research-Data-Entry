@@ -172,9 +172,20 @@ with tab_submit:
                     else: st.success("Contribution submitted!")
 
 with tab_document:
-    st.subheader("Monthly Achievement Generator")
-    if st.button("🏗️ Construct Automated Monthly Document Package"):
-        st.info("Generating report...")
+    st.subheader("Central Document Engine Dashboard Workspace")
+    col_d1, col_d2, col_d3 = st.columns(3)
+    with col_d1: view_dept = st.selectbox("Target Department File Scope", DEPARTMENTS, key="vd1")
+    with col_d2: view_month = st.selectbox("Target Month Scope", MONTHS, key="vm1")
+    with col_d3: view_year = st.selectbox("Target Year Scope", ACADEMIC_YEARS, key="vy1")
+        
+    if st.button("🏗️ Construct Automated Monthly Document Package", use_container_width=True, type="primary"):
+        creds = get_google_credentials()
+        with st.spinner("Assembling structured records from sheets..."):
+            docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
+            file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
+            upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [DEPARTMENT_FOLDERS[view_dept]], creds)
+            st.success(f"🎯 Document synchronized into your Department Drive folder automatically!")
+            st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: gray;'>Developed by Research Committee @ St. Mary's College</div>", unsafe_allow_html=True)
