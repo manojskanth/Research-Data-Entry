@@ -76,7 +76,7 @@ FACULTY_DIRECTORY = {
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
     
-    # NEW BATCH RESTORATIONS
+    # PREVIOUS BATCH ADDITIONS
     "jayalakshmi@stmaryscollege.in": {"name": "Ms. Jayalakshmi D", "secret_key": "jayalakshmi_pass"},
     "harini@stmaryscollege.in": {"name": "Ms. Harini P", "secret_key": "harini_pass"},
     "rupini@stmaryscollege.in": {"name": "Ms. B. Rupini", "secret_key": "rupini_pass"},
@@ -95,8 +95,8 @@ def get_google_credentials():
     try:
         raw_key = st.secrets["GCP_PRIVATE_KEY"]
         
-        # Split lines, strip carriage returns/unexpected whitespace, and join safely with valid block newlines
-        cleaned_lines = [line.strip() for line in raw_key.strip().splitlines()]
+        # FIXED: Splits, strips, and strictly filters out empty elements to neutralize rogue whitespaces/trailing breaks
+        cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
         sanitized_key = "\n".join(cleaned_lines)
         
         info_matrix = {
