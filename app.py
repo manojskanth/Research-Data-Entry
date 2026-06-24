@@ -85,7 +85,7 @@ FACULTY_DIRECTORY = {
     "bikshapathi@stmaryscollege.in": {"name": "Mr. Bikshapathi M", "secret_key": "bikshapathi_pass"},
     "priyamishra@stmaryscollege.in": {"name": "Ms. Priya Mishra", "secret_key": "priyamishra_pass"},
     
-    # NEW BATCH ADDITIONS (June 2026 - Batch 2)
+    # NEW BATCH ADDITIONS
     "deepa@stmaryscollege.in": {"name": "Ms. Deepa Agraval", "secret_key": "deepa_pass"},
     "kavithathakur@stmaryscollege.in": {"name": "Dr. Kavitha Thakur", "secret_key": "kavithathakur_pass"}
 }
@@ -93,14 +93,17 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # Re-expanding explicit single-line text indicators safely back into system-level block newlines
-        clean_key = st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n')
+        raw_key = st.secrets["GCP_PRIVATE_KEY"]
+        
+        # Splits multi-line string text blocks, trims spaces, and drops empty list artifacts
+        cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
+        sanitized_key = "\n".join(cleaned_lines)
         
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
             "project_id": st.secrets["GCP_PROJECT_ID"],
             "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": clean_key,
+            "private_key": sanitized_key,
             "client_email": st.secrets["GCP_CLIENT_EMAIL"],
             "client_id": st.secrets["GCP_CLIENT_ID"],
             "token_uri": st.secrets["GCP_TOKEN_URI"]
