@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 import io
 from docx import Document
 
-# --- 1. CONFIG & FULL FACULTY DIRECTORY ---
+# --- 1. CONFIG & FACULTY DIRECTORY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
@@ -100,7 +100,6 @@ with tab_submit:
         st.error("Data entry is currently disabled by the Administrator.")
     else:
         st.subheader("Add Monthly Achievement Entry")
-        # Global Dropdowns
         col1, col2, col3 = st.columns(3)
         with col1: form_dept = st.selectbox("Department Focus", DEPARTMENTS)
         with col2: form_month = st.selectbox("Reporting Month", MONTHS)
@@ -113,11 +112,10 @@ with tab_submit:
         
         if classification == "🔬 Research Database":
             r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
+            collab_check = st.checkbox("Collaboration involved?", key="collab_box")
             with st.form("research_db_form", clear_on_submit=True):
                 title = st.text_input("Title*")
                 org = st.text_input("Organised By/Journal Name*")
-                
-                # Dynamic Logic
                 if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
                     index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care", "Scopus", "PubMed", "ABDC", "SCIE", "Embase", "Peer Reviewed", "DOAJ", "Other"])
                     issn = st.text_input("ISSN/ISBN Number*")
@@ -125,26 +123,25 @@ with tab_submit:
                 elif r_type in ["Paper Presentation", "FDP", "Workshop"]:
                     date_span = st.text_input("Date Span*")
                     scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
-                
-                # Collaboration Logic
-                collab_check = st.checkbox("Collaboration involved?", key="collab_box")
                 collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
-                
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                
                 if st.form_submit_button("Commit Entry to Central Cloud Repository"):
                     if not upload: st.error("Verification document is mandatory!")
                     elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names are mandatory!")
                     elif not title or not org: st.error("Title and Organisation are mandatory!")
                     elif r_type in ["Paper Publication", "Book Chapter", "Full Book"] and (not issn or not url): st.error("ISSN and URL are mandatory!")
-                    elif r_type in ["Paper Presentation", "FDP", "Workshop"] and not date_span: st.error("Date Span is mandatory!")
-                    else: st.success(f"{r_type} for {form_dept} ({form_month} {form_year}) submitted successfully!")
+                    else: st.success(f"{r_type} submitted successfully!")
 
         elif classification == "🏆 Faculty Profiles & Milestones":
+            subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
+            if subtype == "Certification/Course": st.info("**Format:** `[Name], [Title], [Issuing Body], [Date/Grade]`")
+            elif subtype == "Presentation/Resource Person": st.info("**Format:** `[Name], [Role], [Event Name], [Date]`")
+            elif subtype == "Doctoral Milestone": st.info("**Format:** `[Name], [Milestone], [Topic], [Date]`")
+            elif subtype == "Award/Honor": st.info("**Format:** `[Name], [Award Name], [Awarding Body], [Date]`")
             with st.form("faculty_form", clear_on_submit=True):
                 st.text_area("Achievement Narrative*")
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                if st.form_submit_button("Submit"):
+                if st.form_submit_button("Submit Profile"):
                     if not upload: st.error("Verification mandatory!")
                     else: st.success("Profile submitted!")
 
@@ -152,7 +149,7 @@ with tab_submit:
             with st.form("student_form", clear_on_submit=True):
                 st.text_area("Description*")
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                if st.form_submit_button("Submit"):
+                if st.form_submit_button("Submit Contribution"):
                     if not upload: st.error("Verification mandatory!")
                     else: st.success("Contribution submitted!")
 
