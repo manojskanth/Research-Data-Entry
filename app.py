@@ -69,7 +69,7 @@ FACULTY_DIRECTORY = {
     "pavitrambika@stmaryscollege.in": {"name": "Dr. Pavitrambika", "secret_key": "pavitrambika_pass"},
     "anuradhaemani@stmaryscollege.in": {"name": "Dr. Anuradha", "secret_key": "anuradha_pass"},
     "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"},
-    # --- NEW FACULTY MEMBERS ADDED BELOW ---
+    # --- NEWLY RECONFIGURED FACULTY ADDITIONS ---
     "timee@stmaryscollege.in": {"name": "Dr. Timee Ronra Shimray", "secret_key": "timee_pass"},
     "ismail@stmaryscollege.in": {"name": "Mr. Ismail C", "secret_key": "ismail_pass"},
     "aksharasingh@stmaryscollege.in": {"name": "Dr. Akshara Singh", "secret_key": "akshara_pass"},
@@ -142,7 +142,7 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
         
         sheets_service.spreadsheets().values().update(
             spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1",
-            valueInputOption="USER_ENTERED", body={"values": [sorted_matrix]}
+            valueInputOption="USER_ENTERED", body={"values": sorted_matrix}
         ).execute()
         
     except Exception as e:
