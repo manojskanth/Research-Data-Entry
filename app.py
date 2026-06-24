@@ -93,15 +93,23 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # Load JSON configuration text block directly out of st.secrets matrix
-        raw_json_string = st.secrets["GCP_CREDS_JSON"].strip()
-        info_matrix = json.loads(raw_json_string)
+        # Extract the key and process text escape breaks safely
+        raw_key = st.secrets["GCP_PRIVATE_KEY"]
+        raw_key = raw_key.replace(r'\n', '\n').replace(r'\\n', '\n')
         
-        # Strip and clean lines to drop unexpected characters
-        raw_key = info_matrix["private_key"]
+        # Split lines, strip padding artifacts, and drop empty string array elements
         cleaned_lines = [line.strip() for line in raw_key.strip().splitlines() if line.strip()]
-        info_matrix["private_key"] = "\n".join(cleaned_lines)
+        sanitized_key = "\n".join(cleaned_lines)
         
+        info_matrix = {
+            "type": st.secrets["GCP_TYPE"],
+            "project_id": st.secrets["GCP_PROJECT_ID"],
+            "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
+            "private_key": sanitized_key,
+            "client_email": st.secrets["GCP_CLIENT_EMAIL"],
+            "client_id": st.secrets["GCP_CLIENT_ID"],
+            "token_uri": st.secrets["GCP_TOKEN_URI"]
+        }
         return service_account.Credentials.from_service_account_info(
             info_matrix, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         )
