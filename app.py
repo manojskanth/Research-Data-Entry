@@ -70,22 +70,22 @@ FACULTY_DIRECTORY = {
 def get_google_credentials():
     raw_key = st.secrets["GCP_PRIVATE_KEY"]
     
-    # Universal Normalization: Rebuild line-by-line to stop bad serialization formats
-    lines = raw_key.replace("\\n", "\n").split("\n")
-    cleaned_lines = []
-    for line in lines:
-        line_str = line.strip()
-        if line_str:
-            cleaned_lines.append(line_str)
-            
-    # Reassemble safely with clean unix linebreaks
-    clean_key = "\n".join(cleaned_lines)
+    # Handle structural escapes and ensure all variations of literal newline markers are fully evaluated
+    normalized_key = raw_key.replace("\\n", "\n").replace("\n", "\n").strip()
     
-    # Ensure exact cryptographic token structure matching what OpenSSL/Cryptography demands
-    if "BEGIN PRIVATE KEY" not in clean_key:
-        clean_key = "-----BEGIN PRIVATE KEY-----\n" + clean_key
-    if "END PRIVATE KEY" not in clean_key:
-        clean_key = clean_key + "\n-----END PRIVATE KEY-----"
+    # Separate headers from key body to normalize bad inner spaces or double-line break gaps
+    key_body = normalized_key
+    if "-----BEGIN PRIVATE KEY-----" in key_body:
+        key_body = key_body.split("-----BEGIN PRIVATE KEY-----")[-1]
+    if "-----END PRIVATE KEY-----" in key_body:
+        key_body = key_body.split("-----END PRIVATE KEY-----")[0]
+        
+    # Standardize space layout by extracting individual alphanumeric segments of the core cryptographic hash
+    key_chunks = [chunk.strip() for chunk in key_body.split() if chunk.strip()]
+    reconstructed_body = "\n".join(key_chunks)
+    
+    # Reassemble wrapped pristine PEM cryptographic string block
+    clean_key = f"-----BEGIN PRIVATE KEY-----\n{reconstructed_body}\n-----END PRIVATE KEY-----\n"
 
     info = {
         "type": st.secrets["GCP_TYPE"], 
