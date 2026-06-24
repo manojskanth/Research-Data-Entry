@@ -126,16 +126,22 @@ with tab_submit:
                 collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                 if st.form_submit_button("Commit Entry"):
-                    if not upload: st.error("Verification mandatory!")
+                    if not upload: st.error("Verification document is mandatory!")
                     elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
+                    elif not title or not org: st.error("Title and Organisation are mandatory!")
                     else: st.success("Research entry submitted!")
 
         elif classification == "🏆 Faculty Profiles & Milestones":
             subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
-            if subtype == "Certification/Course": st.info("**Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade]`[cite: 1]")
-            elif subtype == "Presentation/Resource Person": st.info("**Format:** `[Name], [Role], [Topic/Title], [Event Name/Department], [Date]`[cite: 1]")
-            elif subtype == "Doctoral Milestone": st.info("**Format:** `[Name], [Milestone Achieved], [Research Topic], [University], [Date]`[cite: 1]")
-            elif subtype == "Award/Honor": st.info("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body], [Date]`[cite: 1]")
+            if subtype == "Certification/Course": 
+                st.info("**Format:** [Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade]. \n**Example:** Mr. Roy attended a 3-day International Workshop focused on advanced research techniques.")
+            elif subtype == "Presentation/Resource Person": 
+                st.info("**Format:** [Name], [Role: e.g., Presenter/Judge/Facilitator], [Topic/Title], [Event Name], [Date]. \n**Example:** Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return.")
+            elif subtype == "Doctoral Milestone": 
+                st.info("**Format:** [Name], [Milestone Achieved], [Research Topic], [University], [Date]. \n**Example:** Ms. Shanti has successfully completed her PHD thesis.")
+            elif subtype == "Award/Honor": 
+                st.info("**Format:** [Name], [Title of Award/Recognition], [Awarding Body], [Date]. \n**Example:** Dr. Vigneshwari K was officially recognized as an Innovation Ambassador.")
+            
             with st.form("faculty_form", clear_on_submit=True):
                 st.text_area("Achievement Narrative*")
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
@@ -144,7 +150,7 @@ with tab_submit:
                     else: st.success("Profile submitted!")
 
         elif classification == "👥 Departmental & Student Contributions":
-            st.info("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date]`[cite: 1]")
+            st.info("**Format:** [Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date]. \n**Example:** The Department of Commerce hosted the 'IPR Diaries' event for first-year students.")
             with st.form("student_form", clear_on_submit=True):
                 st.text_area("Description*")
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
