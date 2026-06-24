@@ -30,6 +30,7 @@ DEPARTMENT_FOLDERS = {
 FACULTY_DIRECTORY = {
     # PORTAL MASTER ADMIN ACCOUNT
     "research@stmaryscollege.in": {"name": "Portal Administrator", "secret_key": "research_pass"},
+    
     # CORE ROSTER MAP
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
@@ -74,25 +75,29 @@ FACULTY_DIRECTORY = {
     "aksharasingh@stmaryscollege.in": {"name": "Dr. Akshara Singh", "secret_key": "akshara_pass"},
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
-    # JUNE 2026 INCLUSIONS BATCH
+    
+    # PREVIOUS BATCH ADDITIONS
     "jayalakshmi@stmaryscollege.in": {"name": "Ms. Jayalakshmi D", "secret_key": "jayalakshmi_pass"},
     "harini@stmaryscollege.in": {"name": "Ms. Harini P", "secret_key": "harini_pass"},
     "rupini@stmaryscollege.in": {"name": "Ms. B. Rupini", "secret_key": "rupini_pass"},
     "manali@stmaryscollege.in": {"name": "Ms. Manali Manoj Manwadkar", "secret_key": "manali_pass"},
     "kusuma@stmaryscollege.in": {"name": "Ms. Kusuma C", "secret_key": "kusuma_pass"},
     "bikshapathi@stmaryscollege.in": {"name": "Mr. Bikshapathi M", "secret_key": "bikshapathi_pass"},
-    "priyamishra@stmaryscollege.in": {"name": "Ms. Priya Mishra", "secret_key": "priyamishra_pass"}
+    "priyamishra@stmaryscollege.in": {"name": "Ms. Priya Mishra", "secret_key": "priyamishra_pass"},
+    
+    # NEW BATCH ADDITIONS (June 2026 - Batch 2)
+    "deepa@stmaryscollege.in": {"name": "Ms. Deepa Agraval", "secret_key": "deepa_pass"},
+    "kavithathakur@stmaryscollege.in": {"name": "Dr. Kavitha Thakur", "secret_key": "kavithathakur_pass"}
 }
 
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        clean_key = st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n')
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
             "project_id": st.secrets["GCP_PROJECT_ID"],
             "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": clean_key,
+            "private_key": st.secrets["GCP_PRIVATE_KEY"],
             "client_email": st.secrets["GCP_CLIENT_EMAIL"],
             "client_id": st.secrets["GCP_CLIENT_ID"],
             "token_uri": st.secrets["GCP_TOKEN_URI"]
@@ -116,7 +121,6 @@ def pull_active_window_dates(creds):
             return start_date, end_date
     except:
         pass
-    # Safe fallback window defaults if configuration parameters don't exist yet in target sheets
     return datetime.date(2026, 1, 1), datetime.date(2026, 12, 31)
 
 def push_active_window_dates(start_d, end_d, creds):
@@ -258,7 +262,7 @@ if is_admin:
 else:
     tab_submit, tab_document = st.tabs(["📝 Submit Achievement Log", "📊 Live Document Lounge & Analytics"])
 
-# --- TAB 1: ACHIEVEMENT SUBMISSION Repositories ---
+# --- TAB 1: ACHIEVEMENT SUBMISSION ---
 with tab_submit:
     if is_system_locked and not is_admin:
         st.error(f"🛑 **Portal submissions are currently locked.**\n\nThe monthly collection window closed on **{end_window.strftime('%d-%B-%Y')}** to compile reports for the upcoming HR Staff Meeting. Access will resume once the evaluation session concludes.")
@@ -337,7 +341,7 @@ with tab_submit:
                             append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
                             st.success(f"🎉 Achievement string appended to `{target_sheet}` database ledger and sorted!")
 
-# --- TAB 2: DOCUMENT LOUANGE PACKAGE COMPILER ---
+# --- TAB 2: DOCUMENT GENERATION ---
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     col_d1, col_d2, col_d3 = st.columns(3)
@@ -354,7 +358,7 @@ with tab_document:
             st.success(f"🎯 Document synchronized into your Department Drive folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
-# --- TAB 3: ADMIN WINDOW SYSTEM CONTROL DESK (EXCLUSIVE TO MASTER ADMIN) ---
+# --- TAB 3: ADMIN WINDOW CONTROL DESK ---
 if is_admin:
     with tab_admin:
         st.subheader("🔒 System Lock Configuration Panel")
