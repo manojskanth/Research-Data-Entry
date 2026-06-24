@@ -79,12 +79,12 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # FIXED: Reconstructing matrix fields dynamically from individual string variables
+        # Reconstructing structural credential matrix fields dynamically from secrets layout
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
             "project_id": st.secrets["GCP_PROJECT_ID"],
             "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n'),
+            "private_key": st.secrets["GCP_PRIVATE_KEY"], # Directly processes the multi-line PEM structure block
             "client_email": st.secrets["GCP_CLIENT_EMAIL"],
             "client_id": st.secrets["GCP_CLIENT_ID"],
             "token_uri": st.secrets["GCP_TOKEN_URI"]
