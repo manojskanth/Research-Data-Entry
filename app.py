@@ -2,18 +2,14 @@ import streamlit as st
 import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 import io
-import json
 from docx import Document
-from docx.shared import Pt
 
-# --- 1. CONFIGURATION & FULL DIRECTORY ---
+# --- 1. CONFIG & FACULTY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
 
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
@@ -62,26 +58,13 @@ FACULTY_DIRECTORY = {
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"}
 }
 
-# --- 2. GOOGLE CREDENTIALS (Hardened) ---
-def get_google_credentials():
-    clean_key = st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n")
-    info = {
-        "type": st.secrets["GCP_TYPE"], "project_id": st.secrets["GCP_PROJECT_ID"],
-        "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"], "private_key": clean_key,
-        "client_email": st.secrets["GCP_CLIENT_EMAIL"], "client_id": st.secrets["GCP_CLIENT_ID"],
-        "token_uri": st.secrets["GCP_TOKEN_URI"]
-    }
-    return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-
-# --- 3. UI FRAMEWORK ---
+# --- 2. UI FRAMEWORK ---
 st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
 
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
 
 if not st.session_state.authenticated:
-    st.image("logo.png", width=100)
-    st.markdown("## 🔐 St. Mary's Central Achievements Gateway")
     email = st.text_input("College Email").lower()
     pw = st.text_input("Password", type="password")
     if st.button("Sign In"):
@@ -89,58 +72,41 @@ if not st.session_state.authenticated:
             st.session_state.authenticated = True
             st.session_state.logged_email = email
             st.rerun()
-        else: st.error("Invalid credentials.")
     st.stop()
 
 st.image("logo.png", width=100)
+tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
+
+with tab_admin:
+    if st.session_state.logged_email == "research@stmaryscollege.in":
+        st.session_state.admin_enabled = st.toggle("Enable Data Entry", value=st.session_state.admin_enabled)
+    else: st.warning("Unauthorized access.")
+
 with tab_submit:
     if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-        st.error("Data entry is currently disabled by the Administrator.")
+        st.error("Data entry disabled by Admin.")
     else:
         classification = st.selectbox("Select Classification", ["🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"])
-        
         with st.form("main_form", clear_on_submit=True):
             upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-            
-            # --- DYNAMIC FIELDS FOR RESEARCH DATABASE ---
             if classification == "🔬 Research Database":
                 r_type = st.selectbox("Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
-                
-                # Global inputs
                 title = st.text_input("Title*")
                 org_by = st.text_input("Organised By*")
-                
-                # Dynamic inputs based on type
                 if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
                     issn = st.text_input("ISSN/ISBN*")
-                    pub_name = st.text_input("Publisher/Journal Name*")
-                
                 if r_type in ["Paper Presentation", "FDP", "Workshop"]:
                     date_span = st.text_input("Date Span*")
-                    scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
-
                 collab = st.checkbox("Collaboration involved?")
                 collab_names = st.text_input("Collaborator Name*") if collab else ""
-
             else:
                 st.text_area("Achievement Narrative*")
+            
+            if st.form_submit_button("Submit"):
+                if not upload: st.error("Verification upload is mandatory!")
+                elif classification == "🔬 Research Database" and collab and not collab_names: st.error("Collab name mandatory!")
+                else: st.success("Entry submitted successfully!")
 
-            # --- SUBMISSION VALIDATION ---
-            if st.form_submit_button("Commit Entry to Central Cloud Repository"):
-                # Validate common upload
-                if not upload:
-                    st.error("Verification document upload is mandatory!")
-                # Validate research fields
-                elif classification == "🔬 Research Database":
-                    if not title or not org_by:
-                        st.error("Please fill all mandatory fields!")
-                    elif collab and not collab_names:
-                        st.error("Collaborator name is mandatory!")
-                    else:
-                        st.success(f"Submitted {r_type} successfully!")
-                # Validate narrative
-                elif not st.session_state.get("narrative", ""): # Add key to text_area if needed
-                    st.success("Entry submitted successfully!")
 with tab_document:
     st.subheader("Monthly Achievement Generator")
     if st.button("🏗️ Construct Automated Monthly Document Package"):
