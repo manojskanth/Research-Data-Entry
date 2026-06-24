@@ -254,11 +254,7 @@ with tab_submit:
                 st.info("**Example:** `Mr. MSS Roy successfully completed an 8-week NPTEL certification course in \"Advanced Corporate Governance\" with an Elite Silver Elite Medal, organized by IIT Madras.`")
             elif specific_category == "Presentation/Resource Person": 
                 st.warning("**Format:** `[Name], [Role: Guest Speaker/Judge/Facilitator], \"[Topic/Title],\" [Organizing Event Name/Department/Institution], [Date].`")
-                st.info(
-                    "**Example:** `Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on "
-                    "\"Emerging Trends in Literary Criticism\" for the National Colloquium organized by the Department of "
-                    "English, St. Mary's College on June 15, 2026.`"
-                )
+                st.info("**Example:** `Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on \"Emerging Trends in Literary Criticism\" for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.`")
             elif specific_category == "Doctoral Milestone": 
                 st.warning("**Format:** `[Name], [Milestone Achieved], \"[Research Topic],\" [University/Institution], [Date].`")
                 st.info("**Example:** `Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled \"A Comprehensive Evaluation of Cloud Workloads\" at Osmania University.`")
