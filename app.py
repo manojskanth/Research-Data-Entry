@@ -69,7 +69,6 @@ FACULTY_DIRECTORY = {
 
 # --- 2. HELPERS ---
 def get_google_credentials():
-    # ALTERNATIVE METHOD: Parse standard dynamic JSON to natively handle internal linebreaks
     info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT"], strict=False)
     return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
 
