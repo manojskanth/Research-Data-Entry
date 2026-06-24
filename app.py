@@ -69,7 +69,7 @@ FACULTY_DIRECTORY = {
     "pavitrambika@stmaryscollege.in": {"name": "Dr. Pavitrambika", "secret_key": "pavitrambika_pass"},
     "anuradhaemani@stmaryscollege.in": {"name": "Dr. Anuradha", "secret_key": "anuradha_pass"},
     "kanthi@stmaryscollege.in": {"name": "Dr. Kanthi Sree", "secret_key": "kanthi_pass"},
-    # --- Roster Additions ---
+    # --- NEWLY RECONFIGURED FACULTY ADDITIONS ---
     "timee@stmaryscollege.in": {"name": "Dr. Timee Ronra Shimray", "secret_key": "timee_pass"},
     "ismail@stmaryscollege.in": {"name": "Mr. Ismail C", "secret_key": "ismail_pass"},
     "aksharasingh@stmaryscollege.in": {"name": "Dr. Akshara Singh", "secret_key": "akshara_pass"},
@@ -79,16 +79,9 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # FIXED: Reconstructing matrix fields dynamically from individual string variables
-        info_matrix = {
-            "type": st.secrets["GCP_TYPE"],
-            "project_id": st.secrets["GCP_PROJECT_ID"],
-            "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n'),
-            "client_email": st.secrets["GCP_CLIENT_EMAIL"],
-            "client_id": st.secrets["GCP_CLIENT_ID"],
-            "token_uri": st.secrets["GCP_TOKEN_URI"]
-        }
+        b64_string = st.secrets["BASE64_GCP_CREDENTIALS"]
+        decoded_bytes = base64.b64decode(b64_string)
+        info_matrix = json.loads(decoded_bytes)
         return service_account.Credentials.from_service_account_info(
             info_matrix, 
             scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
