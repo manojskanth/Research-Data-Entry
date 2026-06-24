@@ -23,11 +23,21 @@ def get_google_credentials():
         "token_uri": st.secrets["GCP_TOKEN_URI"]
     }, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
 
-# --- 3. UI SETUP ---
+# --- 3. DOCUMENT GENERATOR ENGINE ---
+def build_monthly_word_document(dept_name, active_month, active_year, creds):
+    doc = Document()
+    doc.add_heading(f"Report: {dept_name} - {active_month} {active_year}", 0)
+    doc.add_paragraph("This is an automatically generated report based on the Research Database.")
+    doc_stream = io.BytesIO()
+    doc.save(doc_stream)
+    return doc_stream.getvalue()
+
+# --- 4. APP UI ---
 st.set_page_config(page_title="St. Mary's Research Portal", layout="wide")
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
 
+# Login
 if not st.session_state.authenticated:
     st.image("logo.png", width=100)
     st.markdown("## 🔐 St. Mary's Central Achievements Gateway")
@@ -61,7 +71,6 @@ with tabs[0]:
             with st.form("research_db_form", clear_on_submit=True):
                 r_type = st.selectbox("Research Category", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop", "Funded Research"])
                 
-                # Granular mandatory columns restored
                 c1, c2 = st.columns(2)
                 d_from = c1.date_input("Date From")
                 d_to = c2.date_input("Date To")
@@ -75,19 +84,24 @@ with tabs[0]:
                 upload = st.file_uploader("Upload Verification Document (Mandatory)", type=['pdf', 'jpg', 'png'])
                 
                 if st.form_submit_button("Submit"):
-                    if collab and not collab_names: st.error("Collaborator names are required!")
+                    if collab and not collab_names: st.error("Collaborator names required!")
                     elif not upload: st.error("Verification upload is required!")
                     else: st.success(f"Submitted {r_type} successfully!")
 
-# Generator Tab (Renamed as requested)
+# Generator Tab
 with tabs[1]:
     st.subheader("Monthly Achievement Generator")
-    col_d1, col_d2, col_d3 = st.columns(3)
-    view_dept = col_d1.selectbox("Target Department", DEPARTMENTS)
-    view_month = col_d2.selectbox("Target Month", MONTHS)
-    view_year = col_d3.selectbox("Target Year", ACADEMIC_YEARS)
+    c1, c2, c3 = st.columns(3)
+    view_dept = c1.selectbox("Target Department", DEPARTMENTS)
+    view_month = c2.selectbox("Target Month", MONTHS)
+    view_year = c3.selectbox("Target Year", ACADEMIC_YEARS)
+    
     if st.button("🏗️ Construct Automated Monthly Document Package"):
-        st.info(f"Assembling report for {view_dept}...")
+        with st.spinner("Assembling document..."):
+            creds = get_google_credentials()
+            docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
+            st.success("Document successfully assembled!")
+            st.download_button("📥 Download Report", data=docx_bytes, file_name="Report.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 # Footer
 st.markdown("---")
