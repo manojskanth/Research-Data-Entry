@@ -92,12 +92,12 @@ tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "�
 
 with tab_admin:
     if st.session_state.logged_email == "research@stmaryscollege.in":
-        st.session_state.admin_enabled = st.toggle("Enable Data Entry for Users", value=st.session_state.admin_enabled)
+        st.session_state.admin_enabled = st.toggle("Enable Data Entry", value=st.session_state.admin_enabled)
     else: st.warning("Unauthorized access.")
 
 with tab_submit:
     if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-        st.error("Data entry is currently disabled by the Administrator.")
+        st.error("Data entry is disabled.")
     else:
         st.subheader("Add Monthly Achievement Entry")
         col1, col2, col3 = st.columns(3)
@@ -125,19 +125,17 @@ with tab_submit:
                     scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
                 collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                if st.form_submit_button("Commit Entry to Central Cloud Repository"):
-                    if not upload: st.error("Verification document is mandatory!")
-                    elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names are mandatory!")
-                    elif not title or not org: st.error("Title and Organisation are mandatory!")
-                    elif r_type in ["Paper Publication", "Book Chapter", "Full Book"] and (not issn or not url): st.error("ISSN and URL are mandatory!")
-                    else: st.success(f"{r_type} submitted successfully!")
+                if st.form_submit_button("Commit Entry"):
+                    if not upload: st.error("Verification mandatory!")
+                    elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
+                    else: st.success("Research entry submitted!")
 
         elif classification == "🏆 Faculty Profiles & Milestones":
             subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
-            if subtype == "Certification/Course": st.info("**Format:** `[Name], [Title], [Issuing Body], [Date/Grade]`")
-            elif subtype == "Presentation/Resource Person": st.info("**Format:** `[Name], [Role], [Event Name], [Date]`")
-            elif subtype == "Doctoral Milestone": st.info("**Format:** `[Name], [Milestone], [Topic], [Date]`")
-            elif subtype == "Award/Honor": st.info("**Format:** `[Name], [Award Name], [Awarding Body], [Date]`")
+            if subtype == "Certification/Course": st.info("**Format:** `[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade]`[cite: 1]")
+            elif subtype == "Presentation/Resource Person": st.info("**Format:** `[Name], [Role], [Topic/Title], [Event Name/Department], [Date]`[cite: 1]")
+            elif subtype == "Doctoral Milestone": st.info("**Format:** `[Name], [Milestone Achieved], [Research Topic], [University], [Date]`[cite: 1]")
+            elif subtype == "Award/Honor": st.info("**Format:** `[Name], [Title of Award/Recognition], [Awarding Body], [Date]`[cite: 1]")
             with st.form("faculty_form", clear_on_submit=True):
                 st.text_area("Achievement Narrative*")
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
@@ -146,6 +144,7 @@ with tab_submit:
                     else: st.success("Profile submitted!")
 
         elif classification == "👥 Departmental & Student Contributions":
+            st.info("**Format:** `[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date]`[cite: 1]")
             with st.form("student_form", clear_on_submit=True):
                 st.text_area("Description*")
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
