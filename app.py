@@ -98,6 +98,7 @@ def styled_block(format_text, example_text):
         margin-bottom: 20px;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     ">
+        <!-- Format Row -->
         <div style="display: flex; align-items: flex-start; margin-bottom: 14px;">
             <div style="
                 background-color: #E8EAF6; 
@@ -118,8 +119,10 @@ def styled_block(format_text, example_text):
             </div>
         </div>
         
+        <!-- Subtle Divider Line -->
         <div style="height: 1px; background-color: #F1F3F5; margin: 12px 0;"></div>
         
+        <!-- Example Row -->
         <div style="display: flex; align-items: flex-start;">
             <div style="
                 background-color: #E8F5E9; 
@@ -141,7 +144,6 @@ def styled_block(format_text, example_text):
         </div>
     </div>
     """, unsafe_allow_html=True)
-
 # --- 3. UI ---
 st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
 
