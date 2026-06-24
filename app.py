@@ -68,11 +68,23 @@ FACULTY_DIRECTORY = {
 
 # --- 2. HELPERS ---
 def get_google_credentials():
-    clean_key = st.secrets["GCP_PRIVATE_KEY"].replace("\\n", "\n")
+    # Robust parsing of GCP Key components to solve serialization failures securely
+    raw_key = st.secrets["GCP_PRIVATE_KEY"]
+    clean_key = raw_key.replace("\\n", "\n").replace("\n", "\n").strip()
+    
+    # Ensure standard cryptographic wrapper formatting elements are pristine
+    if not clean_key.startswith("-----BEGIN PRIVATE KEY-----"):
+        clean_key = "-----BEGIN PRIVATE KEY-----\n" + clean_key
+    if not clean_key.endswith("-----END PRIVATE KEY-----"):
+        clean_key = clean_key + "\n-----END PRIVATE KEY-----"
+
     info = {
-        "type": st.secrets["GCP_TYPE"], "project_id": st.secrets["GCP_PROJECT_ID"],
-        "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"], "private_key": clean_key,
-        "client_email": st.secrets["GCP_CLIENT_EMAIL"], "client_id": st.secrets["GCP_CLIENT_ID"],
+        "type": st.secrets["GCP_TYPE"], 
+        "project_id": st.secrets["GCP_PROJECT_ID"],
+        "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"], 
+        "private_key": clean_key,
+        "client_email": st.secrets["GCP_CLIENT_EMAIL"], 
+        "client_id": st.secrets["GCP_CLIENT_ID"],
         "token_uri": st.secrets["GCP_TOKEN_URI"]
     }
     return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
@@ -88,7 +100,6 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     return doc_stream.getvalue()
 
 def styled_block(format_text, example_text):
-    # Keeping HTML completely unindented to prevent Streamlit from seeing it as a markdown code block
     html_string = f"""
 <div style="background-color: #FFFFFF; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #EAECEF; margin-bottom: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
     <div style="display: flex; align-items: flex-start; margin-bottom: 14px;">
@@ -103,6 +114,7 @@ def styled_block(format_text, example_text):
 </div>
 """.strip()
     st.markdown(html_string, unsafe_allow_html=True)
+
 # --- 3. UI ---
 st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
 
@@ -173,13 +185,13 @@ with tab_submit:
             elif classification == "🏆 Faculty Profiles & Milestones":
                 subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
                 if subtype == "Certification/Course": 
-                    styled_block("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal]", "Mr. Roy attended a 3-day International Workshop focused on advanced research techniques, specifically 'Mastering Research Reviews and Meta-Analysis'.")
+                    styled_block("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
                 elif subtype == "Presentation/Resource Person": 
-                    styled_block("[Name], [Role: e.g., Presenter/Judge/Facilitator], [Topic/Title], [Event Name/Department], [Date]", "Dr. C. Kusuma Reddy conducted a Department Colloquium on GST Types and Return.")
+                    styled_block("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
                 elif subtype == "Doctoral Milestone": 
-                    styled_block("[Name], [Milestone Achieved], [Research Topic], [University/Institution], [Date]", "Ms. Shanti has successfully completed her PHD thesis.")
+                    styled_block("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
                 elif subtype == "Award/Honor": 
-                    styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date]", "Dr. Vigneshwari K was officially recognized as an Innovation Ambassador at the 'Foundation Level' by the Ministry of Education.")
+                    styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
                 
                 with st.form("faculty_form", clear_on_submit=True):
                     st.text_area("Achievement Narrative*")
@@ -189,7 +201,7 @@ with tab_submit:
                         else: st.success("Profile submitted!")
 
             elif classification == "👥 Departmental & Student Contributions":
-                styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date]", "The Department of Commerce hosted the 'IPR Diaries' event, where first-year students delivered presentations on Intellectual Property Rights.")
+                styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
                 with st.form("student_form", clear_on_submit=True):
                     st.text_area("Description*")
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
