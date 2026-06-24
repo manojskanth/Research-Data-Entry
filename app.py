@@ -28,10 +28,6 @@ DEPARTMENT_FOLDERS = {
 }
 
 FACULTY_DIRECTORY = {
-    # PORTAL MASTER ADMIN ACCOUNT
-    "research@stmaryscollege.in": {"name": "Portal Administrator", "secret_key": "research_pass"},
-    
-    # CORE ROSTER MAP
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
     "aditijuyal@stmaryscollege.in": {"name": "Prof. Aditi Juyal", "secret_key": "aditijuyal_pass"},
@@ -39,7 +35,7 @@ FACULTY_DIRECTORY = {
     "soumya@stmaryscollege.in": {"name": "Dr. Soumya K", "secret_key": "soumya_pass"},
     "rajita@stmaryscollege.in": {"name": "Dr. Rajita Anand Singh", "secret_key": "rajita_pass"},
     "manojkanth@stmaryscollege.in": {"name": "Dr. Manoj Kanth", "secret_key": "manojkanth_pass"},
-    "swathi@stmaryscollege.in": {"name": "Dr. B. Swathi", "secret_key": "swathi_pass"},
+    "swathi@stmaryscollege.in": {"name": "Dr. Swathi", "secret_key": "swathi_pass"},
     "padmaleela@stmaryscollege.in": {"name": "Ms. Padmaleela", "secret_key": "padmaleela_pass"},
     "nsrinath@stmarycollege.in": {"name": "Dr. Srinath Naganathan", "secret_key": "nsrinath_pass"},
     "sowjanya@stmaryscollege.in": {"name": "Ms. D. Sowjanya", "secret_key": "sowjanya_pass"},
@@ -74,39 +70,18 @@ FACULTY_DIRECTORY = {
     "ismail@stmaryscollege.in": {"name": "Mr. Ismail C", "secret_key": "ismail_pass"},
     "aksharasingh@stmaryscollege.in": {"name": "Dr. Akshara Singh", "secret_key": "akshara_pass"},
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
-    "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
-    
-    # PREVIOUS BATCH ADDITIONS
-    "jayalakshmi@stmaryscollege.in": {"name": "Ms. Jayalakshmi D", "secret_key": "jayalakshmi_pass"},
-    "harini@stmaryscollege.in": {"name": "Ms. Harini P", "secret_key": "harini_pass"},
-    "rupini@stmaryscollege.in": {"name": "Ms. B. Rupini", "secret_key": "rupini_pass"},
-    "manali@stmaryscollege.in": {"name": "Ms. Manali Manoj Manwadkar", "secret_key": "manali_pass"},
-    "kusuma@stmaryscollege.in": {"name": "Ms. Kusuma C", "secret_key": "kusuma_pass"},
-    "bikshapathi@stmaryscollege.in": {"name": "Mr. Bikshapathi M", "secret_key": "bikshapathi_pass"},
-    "priyamishra@stmaryscollege.in": {"name": "Ms. Priya Mishra", "secret_key": "priyamishra_pass"},
-    
-    # NEW BATCH ADDITIONS (June 2026 - Batch 2)
-    "deepa@stmaryscollege.in": {"name": "Ms. Deepa Agraval", "secret_key": "deepa_pass"},
-    "kavithathakur@stmaryscollege.in": {"name": "Dr. Kavitha Thakur", "secret_key": "kavithathakur_pass"}
+    "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"}
 }
 
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        # Pull raw private key text string from secrets
-        raw_key = st.secrets["GCP_PRIVATE_KEY"]
-        
-        # ADVANCED MEMORY SCRUBBER: Re-evaluates textual backslashes, isolates discrete content lines,
-        # trims layout artifacts, and forcefully strips out hidden empty trailer variables or layout fragments
-        raw_key = raw_key.replace(r'\n', '\n').replace(r'\\n', '\n')
-        lines = [line.strip() for line in raw_key.splitlines() if line.strip()]
-        sanitized_key = "\n".join(lines)
-        
+        clean_key = st.secrets["GCP_PRIVATE_KEY"].replace(r'\n', '\n')
         info_matrix = {
             "type": st.secrets["GCP_TYPE"],
             "project_id": st.secrets["GCP_PROJECT_ID"],
             "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-            "private_key": sanitized_key,
+            "private_key": clean_key,
             "client_email": st.secrets["GCP_CLIENT_EMAIL"],
             "client_id": st.secrets["GCP_CLIENT_ID"],
             "token_uri": st.secrets["GCP_TOKEN_URI"]
