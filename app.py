@@ -70,27 +70,21 @@ FACULTY_DIRECTORY = {
 def get_google_credentials():
     raw_key = st.secrets["GCP_PRIVATE_KEY"]
     
-    # Fully clean standard line break text indicators out of the text
-    normalized = raw_key.replace("\\n", " ").replace("\n", " ")
+    # Remove literal \n strings, actual newlines, carriage returns, and spaces
+    clean_body = raw_key.replace("\\n", "").replace("\n", "").replace("\r", "").strip()
     
-    # Strip away headers and footers to isolate the raw private key base-64 hash block
-    for marker in ["-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----"]:
-        normalized = normalized.replace(marker, " ")
-        
-    # Isolate individual raw string tokens by spacing and drop empty components
-    flat_base_string = "".join([token.strip() for token in normalized.split() if token.strip()])
+    # Completely strip headers/footers if present to target the raw base64 contents cleanly
+    clean_body = clean_body.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").strip()
     
-    # Mathematically group the raw hash segments cleanly into exactly 64-character block layout lines
-    reconstructed_body = "\n".join(flat_base_string[i:i+64] for i in range(0, len(flat_base_string), 64))
-    
-    # Reassemble wrapped pristine PEM cryptographic string block
-    clean_key = f"-----BEGIN PRIVATE KEY-----\n{reconstructed_body}\n-----END PRIVATE KEY-----\n"
+    # Reconstruct the key body by wrapping sections at precisely 64 characters per line
+    lines = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
+    formatted_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(lines) + "\n-----END PRIVATE KEY-----\n"
 
     info = {
         "type": st.secrets["GCP_TYPE"], 
         "project_id": st.secrets["GCP_PROJECT_ID"],
         "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"], 
-        "private_key": clean_key,
+        "private_key": formatted_key,
         "client_email": st.secrets["GCP_CLIENT_EMAIL"], 
         "client_id": st.secrets["GCP_CLIENT_ID"],
         "token_uri": st.secrets["GCP_TOKEN_URI"]
