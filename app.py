@@ -327,7 +327,7 @@ with tab_submit:
                     org = st.text_input("Organised By/Journal Name*")
                     
                     if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
-                        index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care Listed", "Scopus", "PubMed", "Peer Reviewed", "DOAJ", "ABDC", "SCIE", "Embase"])
+                        index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care Listed", "Scopus", "Web of Sciences", "PubMed", "Peer Reviewed", "DOAJ", "ABDC", "SCIE", "Embase"])
                         issn = st.text_input("ISSN/ISBN Number*")
                         url = st.text_input("URL*")
                         date_span, scope = "NA", "NA"
