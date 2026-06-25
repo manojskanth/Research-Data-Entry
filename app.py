@@ -3,6 +3,7 @@ import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import io
+import re
 from docx import Document
 
 # --- 1. CONFIG & FULL FACULTY DIRECTORY ---
@@ -71,14 +72,22 @@ FACULTY_DIRECTORY = {
 
 # --- 2. HELPERS ---
 def get_google_credentials():
-    # Pass the multi-line TOML literal string forward with standard layout preservation
-    formatted_pem_key = st.secrets["GCP_PRIVATE_KEY_V2"]
+    # Dynamic fallback check: Detect whether V2 or standard private key parameter is current
+    raw_key = st.secrets["GCP_PRIVATE_KEY_V2"] if "GCP_PRIVATE_KEY_V2" in st.secrets else st.secrets["GCP_PRIVATE_KEY"]
+    
+    # Strip literal escape sequences, real line breaks, header frames, and spaces completely
+    clean_body = raw_key.replace("\\n", "").replace("\n", "").replace("\r", "").replace(" ", "").strip()
+    clean_body = clean_body.replace("-----BEGINPRIVATEKEY-----", "").replace("-----ENDPRIVATEKEY-----", "").strip()
+    
+    # Group cleanly into pieces of exactly 64 characters per line
+    lines = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
+    formatted_pem = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(lines) + "\n-----END PRIVATE KEY-----\n"
     
     info = {
         "type": st.secrets["GCP_TYPE"],
         "project_id": st.secrets["GCP_PROJECT_ID"],
         "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-        "private_key": formatted_pem_key,
+        "private_key": formatted_pem,
         "client_email": st.secrets["GCP_CLIENT_EMAIL"],
         "client_id": st.secrets["GCP_CLIENT_ID"],
         "token_uri": st.secrets["GCP_TOKEN_URI"]
