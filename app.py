@@ -183,7 +183,6 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
         if len(rows) > 1:
             for row in rows[1:]:
                 if len(row) >= 5:
-                    # Sequence layout: [0: Committee Name] [1: Faculty in-charge] [2: Month] [3: Year] [4: Narrative] [5: Date]
                     row_comm, row_faculty, row_month, row_year, row_narrative = row[0], row[1], row[2], row[3], row[4]
                     normalized_row_month = str(row_month).strip().lower()
                     
@@ -193,7 +192,6 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
                     
                     if month_match and str(row_year).strip() == str(active_year).strip():
                         p = doc.add_paragraph(style='List Bullet')
-                        # Bold the specific committee prefixing the layout narrative
                         p.add_run(f"[{row_comm}] ").bold = True
                         p.add_run(f"{row_narrative} (In-charge: {row_faculty})")
                         has_data = True
@@ -277,7 +275,7 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
     doc.save(doc_stream)
     return doc_stream.getvalue()
 
-def styled_block(format_text, example_text):
+def 'Research Data Final Code'(format_text, example_text):
     html_string = f"""
 <div style="background-color: #FFFFFF; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #EAECEF; margin-bottom: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
     <div style="display: flex; align-items: flex-start; margin-bottom: 14px;">
@@ -355,6 +353,7 @@ with tab_submit:
     else:
         st.subheader("Add Monthly Achievement Entry")
         
+        # 1. Scope Selection Switch
         scope_type = st.radio("Select Reporting Scope*", ["Department", "Committee / Cell / Club"], horizontal=True)
         
         col1, col2, col3 = st.columns(3)
@@ -370,22 +369,19 @@ with tab_submit:
             
         st.markdown("---")
         
-        classification = st.selectbox("Select Classification", [
-            "--- Select Category ---", 
-            "🔬 Research Database", 
-            "🏆 Faculty Profiles & Milestones", 
-            "👥 Departmental & Student Contributions",
-            "🏢 Committees / Cells / Clubs Activity Log"
-        ])
+        # 2. Dynamic Interface Branching Logic
+        if scope_type == "Department":
+            # Dynamic Classification dropdown strictly displays Department sheets only
+            classification = st.selectbox("Select Classification", [
+                "--- Select Category ---", 
+                "🔬 Research Database", 
+                "🏆 Faculty Profiles & Milestones", 
+                "👥 Departmental & Student Contributions"
+            ])
 
-        if classification != "--- Select Category ---":
-            creds = get_google_credentials()
-            
-            if classification == "🏢 Committees / Cells / Clubs Activity Log" and scope_type == "Department":
-                st.error("❌ Invalid Layout Match: Please switch your Reporting Scope above to 'Committee / Cell / Club'.")
-            elif classification in ["🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"] and scope_type == "Committee / Cell / Club":
-                st.error("❌ Invalid Layout Match: Departmental ledgers require you to switch your Reporting Scope above to 'Department'.")
-            else:
+            if classification != "--- Select Category ---":
+                creds = get_google_credentials()
+                
                 if classification == "🔬 Research Database":
                     r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
                     collab_check = st.checkbox("Collaboration involved?", key="collab_box")
@@ -424,13 +420,13 @@ with tab_submit:
                     target_sheet = "Faculty_Achievements"
                     subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
                     if subtype == "Certification/Course": 
-                        styled_block("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
+                        'Research Data Final Code'("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
                     elif subtype == "Presentation/Resource Person": 
-                        styled_block("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
+                        'Research Data Final Code'("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
                     elif subtype == "Doctoral Milestone": 
-                        styled_block("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
+                        'Research Data Final Code'("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
                     elif subtype == "Award/Honor": 
-                        styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
+                        'Research Data Final Code'("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
                     
                     with st.form("faculty_form", clear_on_submit=True):
                         narrative_input = st.text_area("Achievement Narrative*")
@@ -448,7 +444,7 @@ with tab_submit:
 
                 elif classification == "👥 Departmental & Student Contributions":
                     target_sheet = "Student_Activities"
-                    styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
+                    'Research Data Final Code'("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
                     with st.form("student_form", clear_on_submit=True):
                         description = st.text_area("Description*")
                         upload = st.file_uploader("Upload Verification Document (Mandatory)*")
@@ -463,39 +459,40 @@ with tab_submit:
                                 append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
                                 st.success("🎉 Contribution submitted!")
 
-                elif classification == "🏢 Committees / Cells / Clubs Activity Log":
-                    target_sheet = "Committees_Cells_Clubs"
-                    styled_block("[Committee Name], organized [Event Type/Activity Details] on [Date Topic Span].", "The Placement Cell coordinated a campus recruitment drive with Deloitte for final year commerce students on May 18, 2026.")
-                    
-                    with st.form("committees_ledger_form", clear_on_submit=True):
-                        narrative_input = st.text_area("Narrative Log Description*")
-                        event_date = st.date_input("Date of Event Activity*", value=datetime.date.today())
-                        upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                        
-                        if st.form_submit_button("Commit Committee Record"):
-                            if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
-                                st.error("Submission rejected: Data entry is currently disabled.")
-                            elif not upload or not narrative_input.strip(): 
-                                st.error("Log Description and verification attachment are strictly mandatory fields!")
-                            else:
-                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, ["1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"], creds)
-                                new_row = [
-                                    form_focus, 
-                                    current_faculty_name, 
-                                    form_month, 
-                                    form_year, 
-                                    narrative_input.strip(), 
-                                    str(event_date)
-                                ]
-                                append_and_sort_sheet_by_department(target_sheet, new_row, 0, creds)
-                                st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
+        else:
+            # If Committee scope is checked, render the form layout cleanly with no dropdown clutter
+            creds = get_google_credentials()
+            target_sheet = "Committees_Cells_Clubs"
+            'Research Data Final Code'("[Committee Name], organized [Event Type/Activity Details] on [Date Topic Span].", "The Placement Cell coordinated a campus recruitment drive with Deloitte for final year commerce students on May 18, 2026.")
+            
+            with st.form("committees_ledger_form", clear_on_submit=True):
+                narrative_input = st.text_area("Narrative Log Description*")
+                event_date = st.date_input("Date of Event Activity*", value=datetime.date.today())
+                upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                
+                if st.form_submit_button("Commit Committee Record"):
+                    if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                        st.error("Submission rejected: Data entry is currently disabled.")
+                    elif not upload or not narrative_input.strip(): 
+                        st.error("Log Description and verification attachment are strictly mandatory fields!")
+                    else:
+                        drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, ["1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"], creds)
+                        new_row = [
+                            form_focus, 
+                            current_faculty_name, 
+                            form_month, 
+                            form_year, 
+                            narrative_input.strip(), 
+                            str(event_date)
+                        ]
+                        append_and_sort_sheet_by_department(target_sheet, new_row, 0, creds)
+                        st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
 
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
     col_d1, col_d2, col_d3 = st.columns(3)
     with col_d1:
-        # Appended the master unified scope string directly inside your default select box choices list
         view_focus = st.selectbox(
             "Target Department / Scope Scope", 
             DEPARTMENTS + ["Committees / Cells / Clubs"], 
@@ -511,7 +508,6 @@ with tab_document:
             docx_bytes = build_monthly_word_document(view_focus, view_month, view_year, creds)
             file_name_string = f"Monthly_Achievements_Report_{view_focus.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
-            # Save into dedicated drive or fallback default vault folder
             target_folder = DEPARTMENT_FOLDERS.get(view_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [target_folder], creds)
             
