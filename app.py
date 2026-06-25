@@ -71,18 +71,17 @@ FACULTY_DIRECTORY = {
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"},
-    "deepa@stmaryscollege.in": {"name": "Dr. Deepa", "secret_key": "deepa_pass"},
     "harini@stmaryscollege.in": {"name": "Ms. Harini", "secret_key": "harini_pass"},
-    harini@stmaryscollege.in": {"name": "Ms. Harini", "secret_key": "harini_pass"},
-    "jayalakshmi@stmaryscollege.in": {"name": "Ms. Jayalakshmi D", "secret_key": "languages_pass"},
-    "rupini@stmaryscollege.in": {"name": "Ms. B. Rupini", "secret_key": "languages_pass"},
-    "manali@stmaryscollege.in": {"name": "Ms. Manali Manoj Manwadkar", "secret_key": "languages_pass"},
-    "kusuma@stmaryscollege.in": {"name": "Dr. Kusuma C", "secret_key": "languages_pass"},
-    "bikshapathi@stmaryscollege.in": {"name": "Mr. Bikshapathi M", "secret_key": "languages_pass"},
-    "vijaybhaskar@stmaryscollege.in": {"name": "Mr. Vijay Bhaskar Reddy", "secret_key": "languages_pass"},
-    "poojasharma@stmaryscollege.in": {"name": "Ms. Pooja Sharma", "secret_key": "languages_pass"},
-    "kavithathakur@stmaryscollege.in": {"name": "Dr. Kavitha Thakur", "secret_key": "languages_pass"},
-    "priyamishra@stmaryscollege.in": {"name": "Dr. Priya Mishra", "secret_key": "languages_pass"}
+    "jayalakshmi@stmaryscollege.in": {"name": "Ms. Jayalakshmi D", "secret_key": "jayalakshmi_pass"},
+    "rupini@stmaryscollege.in": {"name": "Ms. B. Rupini", "secret_key": "rupini_pass"},
+    "manali@stmaryscollege.in": {"name": "Ms. Manali Manoj Manwadkar", "secret_key": "manali_pass"},
+    "kusuma@stmaryscollege.in": {"name": "Dr. Kusuma C", "secret_key": "kusuma_pass"},
+    "bikshapathi@stmaryscollege.in": {"name": "Mr. Bikshapathi M", "secret_key": "bikshapathi_pass"},
+    "vijaybhaskar@stmaryscollege.in": {"name": "Mr. Vijay Bhaskar Reddy", "secret_key": "vijaybhaskar_pass"},
+    "poojasharma@stmaryscollege.in": {"name": "Ms. Pooja Sharma", "secret_key": "poojasharma_pass"},
+    "kavithathakur@stmaryscollege.in": {"name": "Dr. Kavitha Thakur", "secret_key": "kavithathakur_pass"},
+    "priyamishra@stmaryscollege.in": {"name": "Dr. Priya Mishra", "secret_key": "priyamishra_pass"},
+    "deepaagraval@stmaryscollege.in": {"name": "Ms. Deepa Agraval", "secret_key": "deepaagraval_pass"}
 }
 
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
