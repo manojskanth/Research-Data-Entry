@@ -6,6 +6,7 @@ import io
 import json
 import base64
 from docx import Document
+from docx.shared import Pt  # Needed for explicit font metric configurations
 
 # --- 1. CONFIG & FULL FACULTY DIRECTORY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
@@ -72,7 +73,6 @@ FACULTY_DIRECTORY = {
 
 # --- 2. HELPERS ---
 def get_google_credentials():
-    # Decodes the entire original JSON configuration natively to eradicate layout parsing bugs
     encoded_json = st.secrets["GCP_COMPLETE_B64"]
     decoded_json_string = base64.b64decode(encoded_json.encode('utf-8')).decode('utf-8')
     info = json.loads(decoded_json_string)
@@ -85,9 +85,81 @@ def get_google_credentials():
 def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
     return "Drive Sync Ready"
 
+# --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(dept_name, active_month, active_year, creds):
     doc = Document()
-    doc.add_paragraph(f"Report: {dept_name} - {active_month} {active_year}")
+    doc.styles['Normal'].font.name = 'Times New Roman'
+    doc.styles['Normal'].font.size = Pt(12)
+    
+    title_p = doc.add_paragraph()
+    title_p.add_run(f"Monthly Staff Achievements Report: {active_month}, {active_year}\n").bold = True
+    title_p.runs[0].font.size = Pt(14)
+    
+    dept_p = doc.add_paragraph()
+    dept_p.add_run(f"DEPARTMENT OF {dept_name.upper()}\n").bold = True
+    dept_p.runs[0].font.size = Pt(13)
+    
+    sheets_service = build('sheets', 'v4', credentials=creds)
+    
+    sections = [
+        {"title": "I. Research Publications & Paper Presentations", "sheet": "Research_Database", "filter": ["Paper publication", "Book Chapter", "Full Book", "Paper Presentation"], "desc": "Include journal articles, book chapters, full books, or papers presented at conferences."},
+        {"title": "II. Faculty Development Programs (FDPs) & Workshops", "sheet": "Research_Database", "filter": ["FDP", "Workshop"], "desc": "Include training programs attended or successfully completed."},
+        {"title": "III. Professional Certifications & Training", "sheet": "Faculty_Achievements", "filter": ["Certification/Course"], "desc": "Include NPTEL courses, Innovation Ambassador training, or other professional certifications."},
+        {"title": "IV. Resource Person Roles & Invited Lectures", "sheet": "Faculty_Achievements", "filter": ["Presentation/Resource Person"], "desc": "Include acting as a Judge, Guest Speaker, Keynote Facilitator, or Resource Person for academic colloquiums."},
+        {"title": "V. Research Milestones (For Doctoral Scholars)", "sheet": "Faculty_Achievements", "filter": ["Doctoral Milestone"], "desc": "Include milestones such as Synopsis Seminars, Pre-Ph.D. exams, or Thesis submission."},
+        {"title": "VI. Awards, Honors, & Recognitions", "sheet": "Faculty_Achievements", "filter": ["Award/Honor"], "desc": "Include any special awards, titles, or professional recognitions."},
+        {"title": "VII. Departmental & Student Contribution", "sheet": "Student_Activities", "filter": ["Institutional Contribution"], "desc": "Include organized events, Institutional Social Responsibility (ISR) activities, or specialized student activities."}
+    ]
+    
+    def pad_row(target_row, required_length=15):
+        return target_row + [""] * (required_length - len(target_row))
+
+    for sec in sections:
+        doc.add_paragraph().add_run(sec["title"]).bold = True
+        doc.add_paragraph().add_run(sec["desc"]).font.italic = True
+        
+        try:
+            res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=f"'{sec['sheet']}'!A1:N1000").execute()
+            rows = res.get('values', [])
+        except: 
+            rows = []
+            
+        has_data = False
+        if len(rows) > 1:
+            for row in rows[1:]:
+                if len(row) >= 2:
+                    padded = pad_row(row, required_length=15)
+                    
+                    if sec["sheet"] == "Research_Database":
+                        row_dept, row_cat, row_month = padded[1], padded[2], padded[13]
+                    else:
+                        row_dept, row_cat, row_month = padded[1], padded[2], padded[4]
+                    
+                    if str(row_dept).strip().lower() == str(dept_name).strip().lower() and \
+                       str(row_month).strip().lower() == str(active_month).strip().lower() and \
+                       any(str(row_cat).strip().lower() == str(f).strip().lower() for f in sec["filter"]):
+                        
+                        p = doc.add_paragraph(style='List Bullet')
+                        if sec["sheet"] == "Research_Database":
+                            f_name, f_cat, j_type, title_text, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, duration_dates = \
+                                padded[0], padded[2], padded[3], padded[4], padded[7], padded[8], padded[9], padded[10], padded[11], padded[12], padded[6]
+                            
+                            if f_cat in ["Paper publication", "Book Chapter", "Full Book"]:
+                                narr = f'{f_name} published a {f_cat} titled "{title_text}" in {pub_name}. Journal Type: {j_type}, ISSN/ISBN: [{isbn_issn}], Scope: {pub_scope}. URL: {pub_url}'
+                            elif f_cat == "Paper Presentation":
+                                narr = f'{f_name} presented a research paper titled "{title_text}" at the conference organized by {org_body or pub_name} ({duration_dates or "NA"}). Scope: {conf_scope}.'
+                            else:
+                                narr = f'{f_name} completed a {duration_dates} {conf_scope if (conf_scope and conf_scope != "NA") else "Institutional"} {f_cat} on "{title_text}," organized by {org_body}.'
+                        else:
+                            narr = padded[5]
+                        
+                        p.add_run(narr)
+                        has_data = True
+                        
+        if not has_data:
+            doc.add_paragraph().add_run("\t- Nil -")
+        doc.add_paragraph()
+        
     doc_stream = io.BytesIO()
     doc.save(doc_stream)
     return doc_stream.getvalue()
@@ -108,7 +180,7 @@ def styled_block(format_text, example_text):
 """.strip()
     st.markdown(html_string, unsafe_allow_html=True)
 
-# --- 3. UI ---
+# --- 4. UI ---
 st.set_page_config(page_title="St. Mary's Integrated Portal", layout="wide", page_icon="🏫")
 
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
