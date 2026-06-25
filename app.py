@@ -20,7 +20,7 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July", "Augus
 DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
 
 # Dedicated folder vault repository mapping targets
-COMMITTEE_FOLDER_ID = "0AJ2p1y1fhJGdUk9PVA"
+COMMITTEE_FOLDER_ID = "1pzrbGsViKtzsQYBPt-p9ZqQ5WXbzdHcW"
 
 DEPARTMENT_FOLDERS = {
     "English & Languages": "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG",
