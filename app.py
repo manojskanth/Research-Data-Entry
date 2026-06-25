@@ -274,11 +274,20 @@ tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "�
 
 with tab_admin:
     if st.session_state.logged_email == "research@stmaryscollege.in":
-        st.session_state.admin_enabled = st.toggle("Enable Data Entry for Users", value=st.session_state.admin_enabled)
-    else: st.warning("Unauthorized access.")
+        st.toggle(
+            "Enable Data Entry for Users", 
+            key="admin_toggle_widget", 
+            value=st.session_state.get("admin_enabled", True)
+        )
+        st.session_state.admin_enabled = st.session_state.admin_toggle_widget
+    else: 
+        st.warning("Unauthorized access.")
 
 with tab_submit:
-    if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
+    is_locked = not st.session_state.get("admin_enabled", True)
+    is_admin = st.session_state.get("logged_email") == "research@stmaryscollege.in"
+
+    if is_locked and not is_admin:
         st.error("🔒 Data entry is currently disabled by the Administrator.")
     else:
         st.subheader("Add Monthly Achievement Entry")
@@ -315,8 +324,8 @@ with tab_submit:
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                     
                     if st.form_submit_button("Commit Entry"):
-                        if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-                            st.error("Submission rejected: Data entry was disabled while you were filling the form.")
+                        if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                            st.error("Submission rejected: Data entry is currently disabled.")
                         elif not upload: st.error("Verification mandatory!")
                         elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
                         elif not title or not org: st.error("Title and Organisation are mandatory!")
@@ -347,8 +356,8 @@ with tab_submit:
                     narrative_input = st.text_area("Achievement Narrative*")
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                     if st.form_submit_button("Submit Profile"):
-                        if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-                            st.error("Submission rejected: Data entry was disabled while you were filling the form.")
+                        if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                            st.error("Submission rejected: Data entry is currently disabled.")
                         elif not upload or not narrative_input.strip(): st.error("Verification and narrative statement mandatory!")
                         else:
                             creds = get_google_credentials()
@@ -364,8 +373,8 @@ with tab_submit:
                     description = st.text_area("Description*")
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                     if st.form_submit_button("Submit Contribution"):
-                        if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-                            st.error("Submission rejected: Data entry was disabled while you were filling the form.")
+                        if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                            st.error("Submission rejected: Data entry is currently disabled.")
                         elif not upload or not description.strip(): st.error("Verification and description mandatory!")
                         else:
                             creds = get_google_credentials()
