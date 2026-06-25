@@ -19,6 +19,9 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July", "Augus
 
 DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
 
+# Dedicated folder vault repository mapping targets
+COMMITTEE_FOLDER_ID = "0AJ2p1y1fhJGdUk9PVA"
+
 DEPARTMENT_FOLDERS = {
     "English & Languages": "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG",
     "Social Sciences & Humanities": "1m0xEcv-WKQr8CWfHlZ5AuCWIFXAm1H5g",
@@ -353,7 +356,6 @@ with tab_submit:
     else:
         st.subheader("Add Monthly Achievement Entry")
         
-        # 1. Scope Selection Switch
         scope_type = st.radio("Select Reporting Scope*", ["Department", "Committee / Cell / Club"], horizontal=True)
         
         col1, col2, col3 = st.columns(3)
@@ -369,9 +371,7 @@ with tab_submit:
             
         st.markdown("---")
         
-        # 2. Dynamic Interface Branching Logic
         if scope_type == "Department":
-            # Dynamic Classification dropdown strictly displays Department sheets only
             classification = st.selectbox("Select Classification", [
                 "--- Select Category ---", 
                 "🔬 Research Database", 
@@ -460,7 +460,6 @@ with tab_submit:
                                 st.success("🎉 Contribution submitted!")
 
         else:
-            # If Committee scope is checked, render the form layout cleanly with no classification dropdown clutter
             creds = get_google_credentials()
             target_sheet = "Committees_Cells_Clubs"
             styled_block("[Committee Name], organized [Event Type/Activity Details] on [Date Topic Span].", "The Placement Cell coordinated a campus recruitment drive with Deloitte for final year commerce students on May 18, 2026.")
@@ -476,7 +475,8 @@ with tab_submit:
                     elif not upload or not narrative_input.strip(): 
                         st.error("Log Description and verification attachment are strictly mandatory fields!")
                     else:
-                        drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, ["1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"], creds)
+                        # Redirecting all committee uploads into your specified folder vault
+                        drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [COMMITTEE_FOLDER_ID], creds)
                         new_row = [
                             form_focus, 
                             current_faculty_name, 
@@ -508,7 +508,8 @@ with tab_document:
             docx_bytes = build_monthly_word_document(view_focus, view_month, view_year, creds)
             file_name_string = f"Monthly_Achievements_Report_{view_focus.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
-            target_folder = DEPARTMENT_FOLDERS.get(view_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
+            # Dynamic destination choice: send to specific department folder or the committee folder vault
+            target_folder = DEPARTMENT_FOLDERS.get(view_focus, COMMITTEE_FOLDER_ID) if view_focus != "Committees / Cells / Clubs" else COMMITTEE_FOLDER_ID
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [target_folder], creds)
             
             st.success(f"🎯 Document synchronized into your Drive repository folder automatically!")
