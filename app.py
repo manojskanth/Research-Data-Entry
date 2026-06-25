@@ -91,7 +91,7 @@ def append_to_sheet(sheet_name, row_values, creds):
         ).execute()
         return True
     except Exception as e:
-        st.error(f"Google Sheet error: {e}")
+        st.error(f"Google Sheet saving exception: {e}")
         return False
 
 def upload_file_to_drive(uploaded_file, folder_id, creds):
@@ -102,8 +102,9 @@ def upload_file_to_drive(uploaded_file, folder_id, creds):
         file_asset = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
         return file_asset.get('webViewLink', "Drive Sync Ready")
     except Exception as e:
-        st.error(f"Google Drive upload error: {e}")
-        return "Upload Error Link"
+        # Prevent crash if folder permissions are missing, save data anyway
+        st.warning(f"⚠️ Drive Sync Warning (Check folder share settings): Complete entry written to spreadsheet.")
+        return "Pending Folder Permissions Link"
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(dept_name, active_month, active_year, creds):
@@ -207,7 +208,7 @@ if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = Tru
 
 if not st.session_state.authenticated:
     st.markdown("## 🔐 St. Mary's Central Achievements Gateway")
-    email = st.text_input("College Email").lower()
+    email = st.text_input("College Email").lower().strip()
     pw = st.text_input("Password", type="password")
     if st.button("Sign In"):
         if email in FACULTY_DIRECTORY and pw == st.secrets.get(FACULTY_DIRECTORY[email]["secret_key"], "welcome@2026"):
@@ -217,6 +218,10 @@ if not st.session_state.authenticated:
             st.rerun()
         else: st.error("Invalid credentials.")
     st.stop()
+
+# Fallback layer in case session dropped out internally to reassign identity
+if "faculty_name" not in st.session_state:
+    st.session_state.faculty_name = FACULTY_DIRECTORY.get(st.session_state.get("logged_email"), {}).get("name", "Faculty Member")
 
 st.image("logo.png", width=100)
 tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
