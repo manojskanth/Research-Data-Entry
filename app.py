@@ -110,7 +110,7 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
 def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, creds):
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
-        result = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:P2000").execute()
+        result = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000").execute()
         rows = result.get('values', [])
         
         if not rows:
@@ -126,7 +126,7 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
         data_rows.sort(key=lambda r: DEPT_SORT_ORDER.get(r[dept_column_index], len(DEPARTMENTS)) if len(r) > dept_column_index else len(DEPARTMENTS))
         sorted_matrix = [header] + data_rows
         
-        sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:P2000").execute()
+        sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000").execute()
         sheets_service.spreadsheets().values().update(
             spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1",
             valueInputOption="USER_ENTERED", body={"values": sorted_matrix}
@@ -160,7 +160,7 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
         {"title": "VII. Departmental & Student Contribution", "sheet": "Student_Activities", "filter": ["Institutional Contribution"], "desc": "Include organized events, Institutional Social Responsibility (ISR) activities, or specialized student activities."}
     ]
     
-    def pad_row(target_row, required_length=16):
+    def pad_row(target_row, required_length=15):
         return target_row + [""] * (required_length - len(target_row))
 
     month_map = {"jan": "january", "feb": "february", "mar": "march", "apr": "april", "may": "may", "jun": "june", "jul": "july", "aug": "august", "sep": "september", "oct": "october", "nov": "november", "dec": "december"}
@@ -170,7 +170,7 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
         doc.add_paragraph().add_run(sec["desc"]).font.italic = True
         
         try:
-            res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=f"'{sec['sheet']}'!A1:P1000").execute()
+            res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=f"'{sec['sheet']}'!A1:N1000").execute()
             rows = res.get('values', [])
         except: 
             rows = []
@@ -179,7 +179,8 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
         if len(rows) > 1:
             for row in rows[1:]:
                 if len(row) >= 2:
-                    padded = pad_row(row, required_length=16)
+                    padded = pad_row(row, required_length=15)
+                    
                     if sec["sheet"] == "Research_Database":
                         row_dept, row_cat, row_month = padded[1], padded[2], padded[13]
                     else:
@@ -197,8 +198,8 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
                         
                         p = doc.add_paragraph(style='List Bullet')
                         if sec["sheet"] == "Research_Database":
-                            f_name, f_cat, j_type, title_text, drive_link, duration_dates, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn = \
-                                padded[0], padded[2], padded[3], padded[4], padded[5], padded[6], padded[7], padded[8], padded[9], padded[10], padded[11], padded[12]
+                            f_name, f_cat, j_type, title_text, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, duration_dates = \
+                                padded[0], padded[2], padded[3], padded[4], padded[7], padded[8], padded[9], padded[10], padded[11], padded[12], padded[6]
                             
                             if f_cat in ["Paper publication", "Book Chapter", "Full Book"]:
                                 narr = f'{f_name} published a {f_cat} titled "{title_text}" in {pub_name}. Journal Type: {j_type}, ISSN/ISBN: [{isbn_issn}], Scope: {pub_scope}. URL: {pub_url}'
@@ -216,11 +217,6 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
             doc.add_paragraph().add_run("\t- Nil -")
         doc.add_paragraph()
         
-    doc_stream = io.BytesIO()
-    doc.save(doc_stream)
-    return doc_stream.getvalue()
-
-def docx_to_bytes(doc):
     doc_stream = io.BytesIO()
     doc.save(doc_stream)
     return doc_stream.getvalue()
