@@ -269,7 +269,18 @@ if not st.session_state.authenticated:
             else: st.error("Email address not authorized inside profile system.")
     st.stop()
 
+# --- HEADER WORKSPACE WITH LOGOUT & ACCOUNT SPECIFICATION ---
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
+
+header_col, logout_col = st.columns([8, 1.5])
+with header_col:
+    st.markdown(f"### Welcome back, **{current_faculty_name}** `(Logged in: {current_faculty_name})`")
+with logout_col:
+    if st.button("🚪 Log Out", type="secondary", use_container_width=True):
+        st.session_state.authenticated = False
+        st.session_state.logged_email = ""
+        st.rerun()
+
 tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
 
 with tab_admin:
