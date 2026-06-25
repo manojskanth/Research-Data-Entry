@@ -273,10 +273,12 @@ if not st.session_state.authenticated:
             else: st.error("Email address not authorized inside profile system.")
     st.stop()
 
-# --- HEADER WORKSPACE WITH LOGOUT TOOL ---
+# --- HEADER WORKSPACE WITH LOGOUT TOOL & SMALL INNER LOGO ---
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
 
-header_col, logout_col = st.columns([8, 1.5])
+logo_col, header_col, logout_col = st.columns([1, 7, 1.5])
+with logo_col:
+    st.image("logo.png", width=65)  # Rendered explicitly smaller than the sign-in asset
 with header_col:
     st.markdown(f"### Welcome back, **{current_faculty_name}**")
 with logout_col:
