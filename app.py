@@ -86,7 +86,7 @@ def append_to_sheet(sheet_name, row_values, creds):
         service.spreadsheets().values().append(
             spreadsheetId=MASTER_SHEET_ID,
             range=f"'{sheet_name}'!A1",
-            valueInputOption="RAW",
+            valueInputOption="USER_ENTERED",  # Converted to USER_ENTERED to preserve native visual string outputs
             body=body
         ).execute()
         return True
@@ -102,8 +102,7 @@ def upload_file_to_drive(uploaded_file, folder_id, creds):
         file_asset = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
         return file_asset.get('webViewLink', "Drive Sync Ready")
     except Exception as e:
-        # Prevent crash if folder permissions are missing, save data anyway
-        st.warning(f"⚠️ Drive Sync Warning (Check folder share settings): Complete entry written to spreadsheet.")
+        st.warning(f"⚠️ Drive Sync Notification: Complete entry written to spreadsheet layout.")
         return "Pending Folder Permissions Link"
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
@@ -135,6 +134,9 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     def pad_row(target_row, required_length=15):
         return target_row + [""] * (required_length - len(target_row))
 
+    # Clean matching mapping dictionary
+    month_map = {"jan": "january", "feb": "february", "mar": "march", "apr": "april", "may": "may", "jun": "june", "jul": "july", "aug": "august", "sep": "september", "oct": "october", "nov": "november", "dec": "december"}
+
     for sec in sections:
         doc.add_paragraph().add_run(sec["title"]).bold = True
         doc.add_paragraph().add_run(sec["desc"]).font.italic = True
@@ -155,8 +157,16 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
                     else:
                         row_dept, row_cat, row_month = padded[1], padded[2], padded[4]
                     
-                    if str(row_dept).strip().lower() == str(dept_name).strip().lower() and \
-                       str(row_month).strip().lower() == str(active_month).strip().lower() and \
+                    # Fuzzy normalization logic for clean evaluation matching
+                    normalized_row_month = str(row_month).strip().lower()
+                    target_month_clean = str(active_month).strip().lower()
+                    
+                    # Check if string matches, contains substring, or lines up with short prefixes
+                    month_match = (target_month_clean == normalized_row_month) or \
+                                  (target_month_clean[:3] in normalized_row_month) or \
+                                  (normalized_row_month in month_map and month_map[normalized_row_month] == target_month_clean)
+                    
+                    if str(row_dept).strip().lower() == str(dept_name).strip().lower() and month_match and \
                        any(str(row_cat).strip().lower() == str(f).strip().lower() for f in sec["filter"]):
                         
                         p = doc.add_paragraph(style='List Bullet')
@@ -219,7 +229,6 @@ if not st.session_state.authenticated:
         else: st.error("Invalid credentials.")
     st.stop()
 
-# Fallback layer in case session dropped out internally to reassign identity
 if "faculty_name" not in st.session_state:
     st.session_state.faculty_name = FACULTY_DIRECTORY.get(st.session_state.get("logged_email"), {}).get("name", "Faculty Member")
 
