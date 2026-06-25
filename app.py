@@ -110,7 +110,7 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
 def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, creds):
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
-        result = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:P2000").execute()
+        result = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000").execute()
         rows = result.get('values', [])
         
         if not rows:
@@ -126,7 +126,7 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
         data_rows.sort(key=lambda r: DEPT_SORT_ORDER.get(r[dept_column_index], len(DEPARTMENTS)) if len(r) > dept_column_index else len(DEPARTMENTS))
         sorted_matrix = [header] + data_rows
         
-        sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:P2000").execute()
+        sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000").execute()
         sheets_service.spreadsheets().values().update(
             spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1",
             valueInputOption="USER_ENTERED", body={"values": sorted_matrix}
@@ -151,7 +151,7 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     sheets_service = build('sheets', 'v4', credentials=creds)
     
     sections = [
-        {"title": "I. Research Publications & Paper Presentations", "sheet": "Research_Database", "filter": ["Paper publication", "Book Chapter", "Full Book", "Paper Presentation"], "desc": "Include journal articles, book chapters, full books, or papers presented at conferences."},
+        {"title": "I. Research Publications & Paper Presentations", "sheet": "Research_Database", "filter": ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation"], "desc": "Include journal articles, book chapters, full books, or papers presented at conferences."},
         {"title": "II. Faculty Development Programs (FDPs) & Workshops", "sheet": "Research_Database", "filter": ["FDP", "Workshop"], "desc": "Include training programs attended or successfully completed."},
         {"title": "III. Professional Certifications & Training", "sheet": "Faculty_Achievements", "filter": ["Certification/Course"], "desc": "Include NPTEL courses, Innovation Ambassador training, or other professional certifications."},
         {"title": "IV. Resource Person Roles & Invited Lectures", "sheet": "Faculty_Achievements", "filter": ["Presentation/Resource Person"], "desc": "Include acting as a Judge, Guest Speaker, Keynote Facilitator, or Resource Person for academic colloquiums."},
@@ -201,7 +201,7 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
                             f_name, f_cat, j_type, title_text, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, duration_dates = \
                                 padded[0], padded[2], padded[3], padded[4], padded[7], padded[8], padded[9], padded[10], padded[11], padded[12], padded[6]
                             
-                            if f_cat in ["Paper publication", "Book Chapter", "Full Book"]:
+                            if f_cat in ["Paper Publication", "Book Chapter", "Full Book"]:
                                 narr = f'{f_name} published a {f_cat} titled "{title_text}" in {pub_name}. Journal Type: {j_type}, ISSN/ISBN: [{isbn_issn}], Scope: {pub_scope}. URL: {pub_url}'
                             elif f_cat == "Paper Presentation":
                                 narr = f'{f_name} presented a research paper titled "{title_text}" at the conference organized by {org_body or pub_name} ({duration_dates or "NA"}). Scope: {conf_scope}.'
@@ -272,100 +272,91 @@ with tab_submit:
         st.error("Data entry is currently disabled by the Administrator.")
     else:
         st.subheader("Add Monthly Achievement Entry")
-        col_a, col_b, col_c = st.columns(3)
-        with col_a: form_dept = st.selectbox("Select Department Focus", DEPARTMENTS)
-        with col_b: form_month = st.selectbox("Reporting Month", MONTHS)
-        with col_c: form_year = st.selectbox("Reporting Academic Year", ACADEMIC_YEARS)
-            
+        col1, col2, col3 = st.columns(3)
+        with col1: form_dept = st.selectbox("Department Focus", DEPARTMENTS)
+        with col2: form_month = st.selectbox("Reporting Month", MONTHS)
+        with col3: form_year = st.selectbox("Academic Year", ACADEMIC_YEARS)
         st.markdown("---")
-        classification = st.selectbox("Select Entry Classification Category", [
-            "-- Select Sub-Ledger Direction --",
-            "🔬 Research Database (Publications, Paper Presentations, FDPs, Workshops)",
-            "🏆 Faculty Profiles & Milestones (Certifications, Resource Person Roles, Ph.D. Milestones, Awards)",
-            "👥 Departmental & Student Contributions"
-        ])
         
-        if classification != "-- Select Sub-Ledger Direction --":
-            if "Research Database" in classification: target_sheet = "Research_Database"
-            elif "Faculty Profiles" in classification:
-                target_sheet = "Faculty_Achievements"
-                specific_category = st.selectbox("Sub-Category Type", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
-            else: target_sheet, specific_category = "Student_Activities", "Institutional Contribution"
+        classification = st.selectbox("Select Classification", [
+            "--- Select Category ---", "🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"
+        ])
 
-            if "Research Database" not in classification:
-                st.markdown("### 📝 Required Formatting Helper")
-                if specific_category == "Certification/Course": 
+        if classification != "--- Select Category ---":
+            if classification == "🔬 Research Database":
+                r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
+                collab_check = st.checkbox("Collaboration involved?", key="collab_box")
+                
+                with st.form("research_db_form", clear_on_submit=True):
+                    title = st.text_input("Title*")
+                    org = st.text_input("Organised By/Journal Name*")
+                    
+                    if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
+                        index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care Listed", "Scopus", "PubMed", "Peer Reviewed", "DOAJ", "ABDC", "SCIE", "Embase"])
+                        issn = st.text_input("ISSN/ISBN Number*")
+                        url = st.text_input("URL*")
+                        date_span, scope = "NA", "NA"
+                    elif r_type in ["Paper Presentation", "FDP", "Workshop"]:
+                        date_span = st.text_input("Date Span*")
+                        scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
+                        index_type, issn, url = "NA", "NA", "NA"
+                    
+                    collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
+                    upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                    
+                    if st.form_submit_button("Commit Entry"):
+                        if not upload: st.error("Verification mandatory!")
+                        elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
+                        elif not title or not org: st.error("Title and Organisation are mandatory!")
+                        else:
+                            creds = get_google_credentials()
+                            drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
+                            
+                            new_row = [
+                                current_faculty_name, form_dept, r_type, index_type, title, 
+                                drive_link, date_span, url, org, scope, scope, org, issn, form_month
+                            ]
+                            append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
+                            st.success("🎉 Research entry submitted successfully!")
+
+            elif classification == "🏆 Faculty Profiles & Milestones":
+                target_sheet = "Faculty_Achievements"
+                subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
+                if subtype == "Certification/Course": 
                     styled_block("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
-                elif specific_category == "Presentation/Resource Person": 
+                elif subtype == "Presentation/Resource Person": 
                     styled_block("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
-                elif specific_category == "Doctoral Milestone": 
+                elif subtype == "Doctoral Milestone": 
                     styled_block("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
                 elif subtype == "Award/Honor": 
                     styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
-                elif specific_category == "Institutional Contribution": 
-                    styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
-
-            with st.form("achievement_universal_form", clear_on_submit=True):
-                uploaded_file = st.file_uploader("Upload Supporting Verification Document (Mandatory)*")
                 
-                if "Research Database" in classification:
-                    f_cat = st.selectbox("Category/ Research Type*", ["Paper publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
-                    
-                    # Layout layout structure variations per sub-type selections
-                    if f_cat in ["Paper publication", "Book Chapter", "Full Book"]:
-                        j_type = st.selectbox("Journal / Book Type*", ["UGC Care listed", "Scopus", "Pubmed", "Peer Reviewed", "Other"])
-                        title_text = st.text_input("Title of Paper / Book / Chapter Name*")
-                        pub_name = st.text_input("Journal Name / Publisher Name*")
-                        isbn_issn = st.text_input("ISSN/ISBN Number*")
-                        pub_url = st.text_input("Publication URL Link*")
-                        pub_scope = st.selectbox("Publisher Scope*", ["International", "National"])
-                        
-                        # Empty placeholders to preserve column configurations
-                        duration_dates, conf_scope, org_body = "NA", "NA", "NA"
-                        
-                    elif f_cat == "Paper Presentation":
-                        title_text = st.text_input("Title of Research Paper Presented*")
-                        pub_name = st.text_input("Conference Name*")
-                        org_body = st.text_input("Organizing Institution / Conducting Body*")
-                        duration_dates = st.text_input("Date Span Text (e.g., June 10-14, 2026 / June 17, 2026)*")
-                        conf_scope = st.selectbox("Conference Scope*", ["International", "National", "State", "Institutional"])
-                        
-                        # Empty placeholders to preserve column configurations
-                        j_type, isbn_issn, pub_url, pub_scope = "Conference", "NA", "NA", "NA"
-                        
-                    else: # FDP or Workshop
-                        title_text = st.text_input("Theme / Topic of FDP or Workshop*")
-                        org_body = st.text_input("Organizing / Conducting Body*")
-                        duration_dates = st.text_input("Date Span Text (e.g., June 2-6, 2025)*")
-                        conf_scope = st.selectbox("Event Scope*", ["International", "National", "State", "Institutional"])
-                        
-                        # Empty placeholders to preserve column configurations
-                        j_type, pub_name, isbn_issn, pub_url, pub_scope = "NA", "NA", "NA", "NA", "NA"
-                    
-                    if st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary"):
-                        if not uploaded_file:
-                            st.error("Submission blocked: Verification document upload is strictly mandatory!")
-                        elif not title_text.strip():
-                            st.error("Submission blocked: Title field is mandatory!")
+                with st.form("faculty_form", clear_on_submit=True):
+                    narrative_input = st.text_area("Achievement Narrative*")
+                    upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                    if st.form_submit_button("Submit Profile"):
+                        if not upload or not narrative_input.strip(): st.error("Verification and narrative statement mandatory!")
                         else:
                             creds = get_google_credentials()
-                            drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
-                            new_row = [current_faculty_name, form_dept, f_cat, j_type, title_text, drive_link, duration_dates, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, form_month]
-                            append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
-                            st.success(f"🎉 Structured {f_cat} Entry compiled into database ledger and perfectly sorted!")
-                else:
-                    narrative_input = st.text_area("Enter Achievement Narrative Text Statement String*")
-                    if st.form_submit_button("Commit Entry to Central Cloud Repository", type="primary"):
-                        if not uploaded_file:
-                            st.error("Submission blocked: Verification document upload is strictly mandatory!")
-                        elif not narrative_input.strip():
-                            st.error("Input Error: The narrative text block cannot be left empty.")
-                        else:
-                            creds = get_google_credentials()
-                            drive_link = upload_file_to_drive(uploaded_file.read(), uploaded_file.name, uploaded_file.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
-                            new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, specific_category, narrative_input.strip(), current_faculty_name, drive_link]
+                            drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
+                            new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, subtype, narrative_input.strip(), current_faculty_name, drive_link]
                             append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
-                            st.success(f"🎉 Achievement string appended to `{target_sheet}` database ledger and sorted!")
+                            st.success("🎉 Profile submitted!")
+
+            elif classification == "👥 Departmental & Student Contributions":
+                target_sheet = "Student_Activities"
+                styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
+                with st.form("student_form", clear_on_submit=True):
+                    description = st.text_area("Description*")
+                    upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                    if st.form_submit_button("Submit Contribution"):
+                        if not upload or not description.strip(): st.error("Verification and description mandatory!")
+                        else:
+                            creds = get_google_credentials()
+                            drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
+                            new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, "Institutional Contribution", description.strip(), current_faculty_name, drive_link]
+                            append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
+                            st.success("🎉 Contribution submitted!")
 
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
