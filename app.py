@@ -13,6 +13,7 @@ from docx.shared import Pt
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 
 DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce", "IQAC", "Research & Innovation", "Physical Education"]
+COMMITTEES_CELLS_CLUBS = ["Alumni", "Anti-Ragging", "Disciplinary", "Equal Opportunity", "Grievance Redressal", "Internal Complaints", "Scholarship", "Library", "Placement", "Public Relations", "Women Empowerment", "Student Activity Clubs", "IIC"]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
@@ -29,7 +30,7 @@ DEPARTMENT_FOLDERS = {
 FACULTY_DIRECTORY = {
     "saikiran@stmaryscollege.in": {"name": "Dr. Saikiran", "secret_key": "saikiran_pass"},
     "sangeetha@stmaryscollege.in": {"name": "Dr. Sangeetha", "secret_key": "sangeetha_pass"},
-    "aditijuyal@stmaryscollege.in": {"name": "Ms. Aditi Juyal", "secret_key": "aditijuyal_pass"},
+    "aditijuyal@stmaryscollege.in": {"name": "Prof. Aditi Juyal", "secret_key": "aditijuyal_pass"},
     "maithry@stmaryscollege.in": {"name": "Dr. Maithry Shinde", "secret_key": "maithry_pass"},
     "soumya@stmaryscollege.in": {"name": "Dr. Soumya K", "secret_key": "soumya_pass"},
     "rajita@stmaryscollege.in": {"name": "Dr. Rajita Anand Singh", "secret_key": "rajita_pass"},
@@ -71,17 +72,18 @@ FACULTY_DIRECTORY = {
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"},
+    "deepa@stmaryscollege.in": {"name": "Dr. Deepa", "secret_key": "deepa_pass"},
     "harini@stmaryscollege.in": {"name": "Ms. Harini", "secret_key": "harini_pass"},
     "jayalakshmi@stmaryscollege.in": {"name": "Ms. Jayalakshmi D", "secret_key": "jayalakshmi_pass"},
     "rupini@stmaryscollege.in": {"name": "Ms. B. Rupini", "secret_key": "rupini_pass"},
-    "manali@stmaryscollege.in": {"name": "Dr. Manali Manoj Manwadkar", "secret_key": "manali_pass"},
+    "manali@stmaryscollege.in": {"name": "Ms. Manali Manoj Manwadkar", "secret_key": "manali_pass"},
     "kusuma@stmaryscollege.in": {"name": "Dr. Kusuma C", "secret_key": "kusuma_pass"},
     "bikshapathi@stmaryscollege.in": {"name": "Mr. Bikshapathi M", "secret_key": "bikshapathi_pass"},
     "vijaybhaskar@stmaryscollege.in": {"name": "Mr. Vijay Bhaskar Reddy", "secret_key": "vijaybhaskar_pass"},
     "poojasharma@stmaryscollege.in": {"name": "Ms. Pooja Sharma", "secret_key": "poojasharma_pass"},
     "kavithathakur@stmaryscollege.in": {"name": "Dr. Kavitha Thakur", "secret_key": "kavithathakur_pass"},
     "priyamishra@stmaryscollege.in": {"name": "Dr. Priya Mishra", "secret_key": "priyamishra_pass"},
-    "deepa@stmaryscollege.in": {"name": "Ms. Deepa Agraval", "secret_key": "deepaagraval_pass"}
+    "deepaagraval@stmaryscollege.in": {"name": "Ms. Deepa Agraval", "secret_key": "deepaagraval_pass"}
 }
 
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
@@ -132,7 +134,11 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
         header, data_rows = rows[0], rows[1:]
         data_rows.append(new_row)
         
-        data_rows.sort(key=lambda r: DEPT_SORT_ORDER.get(r[dept_column_index], len(DEPARTMENTS)) if len(r) > dept_column_index else len(DEPARTMENTS))
+        if sheet_name in ["Research_Database", "Faculty_Achievements", "Student_Activities"]:
+            data_rows.sort(key=lambda r: DEPT_SORT_ORDER.get(r[dept_column_index], len(DEPARTMENTS)) if len(r) > dept_column_index else len(DEPARTMENTS))
+        else:
+            data_rows.sort(key=lambda r: r[dept_column_index] if len(r) > dept_column_index else "")
+            
         sorted_matrix = [header] + data_rows
         
         sheets_service.spreadsheets().values().clear(spreadsheetId=MASTER_SHEET_ID, range=f"'{sheet_name}'!A1:N2000").execute()
@@ -272,12 +278,12 @@ if not st.session_state.authenticated:
             else: st.error("Email address not authorized inside profile system.")
     st.stop()
 
-# --- HEADER WORKSPACE WITH LOGOUT TOOL & SMALL INNER LOGO ---
+# --- HEADER WORKSPACE WITH LOGOUT TOOL ---
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
 
 logo_col, header_col, logout_col = st.columns([1, 7, 1.5])
 with logo_col:
-    st.image("logo.png", width=65)  # Rendered explicitly smaller than the sign-in asset
+    st.image("logo.png", width=65)
 with header_col:
     st.markdown(f"### Welcome back, **{current_faculty_name}**")
 with logout_col:
@@ -307,97 +313,141 @@ with tab_submit:
         st.error("🔒 Data entry is currently disabled by the Administrator.")
     else:
         st.subheader("Add Monthly Achievement Entry")
+        
+        scope_type = st.radio("Select Reporting Scope*", ["Department", "Committee / Cell / Club"], horizontal=True)
+        
         col1, col2, col3 = st.columns(3)
-        with col1: form_dept = st.selectbox("Department Focus", DEPARTMENTS)
-        with col2: form_month = st.selectbox("Reporting Month", MONTHS)
-        with col3: form_year = st.selectbox("Academic Year", ACADEMIC_YEARS)
+        with col1:
+            if scope_type == "Department":
+                form_focus = st.selectbox("Department Focus*", DEPARTMENTS)
+            else:
+                form_focus = st.selectbox("Committees / Cells / Clubs Focus*", COMMITTEES_CELLS_CLUBS)
+        with col2: 
+            form_month = st.selectbox("Reporting Month*", MONTHS)
+        with col3: 
+            form_year = st.selectbox("Academic Year*", ACADEMIC_YEARS)
+            
         st.markdown("---")
         
         classification = st.selectbox("Select Classification", [
-            "--- Select Category ---", "🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"
+            "--- Select Category ---", 
+            "🔬 Research Database", 
+            "🏆 Faculty Profiles & Milestones", 
+            "👥 Departmental & Student Contributions",
+            "🏢 Committees / Cells / Clubs Activity Log"
         ])
 
         if classification != "--- Select Category ---":
-            if classification == "🔬 Research Database":
-                r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
-                collab_check = st.checkbox("Collaboration involved?", key="collab_box")
-                
-                with st.form("research_db_form", clear_on_submit=True):
-                    title = st.text_input("Title*")
-                    org = st.text_input("Organised By/Journal Name*")
+            creds = get_google_credentials()
+            
+            if classification == "🏢 Committees / Cells / Clubs Activity Log" and scope_type == "Department":
+                st.error("❌ Invalid Layout Match: Please switch your Reporting Scope above to 'Committee / Cell / Club'.")
+            elif classification in ["🔬 Research Database", "🏆 Faculty Profiles & Milestones", "👥 Departmental & Student Contributions"] and scope_type == "Committee / Cell / Club":
+                st.error("❌ Invalid Layout Match: Departmental ledgers require you to switch your Reporting Scope above to 'Department'.")
+            else:
+                if classification == "🔬 Research Database":
+                    r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
+                    collab_check = st.checkbox("Collaboration involved?", key="collab_box")
                     
-                    if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
-                        index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care Listed", "Scopus", "Web of Sciences", "PubMed", "Peer Reviewed", "DOAJ", "ABDC", "SCIE", "Embase"])
-                        issn = st.text_input("ISSN/ISBN Number*")
-                        url = st.text_input("URL*")
-                        date_span, scope = "NA", "NA"
-                    elif r_type in ["Paper Presentation", "FDP", "Workshop"]:
-                        date_span = st.text_input("Date Span*")
-                        scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
-                        index_type, issn, url = "NA", "NA", "NA"
-                    
-                    collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
-                    upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                    
-                    if st.form_submit_button("Commit Entry"):
-                        if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
-                            st.error("Submission rejected: Data entry is currently disabled.")
-                        elif not upload: st.error("Verification mandatory!")
-                        elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
-                        elif not title or not org: st.error("Title and Organisation are mandatory!")
-                        else:
-                            creds = get_google_credentials()
-                            drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
-                            
-                            new_row = [
-                                current_faculty_name, form_dept, r_type, index_type, title, 
-                                drive_link, date_span, url, org, scope, scope, org, issn, form_month
-                            ]
-                            append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
-                            st.success("🎉 Research entry submitted successfully!")
+                    with st.form("research_db_form", clear_on_submit=True):
+                        title = st.text_input("Title*")
+                        org = st.text_input("Organised By/Journal Name*")
+                        
+                        if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
+                            index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care Listed", "Scopus", "PubMed", "Peer Reviewed", "DOAJ", "ABDC", "SCIE", "Embase"])
+                            issn = st.text_input("ISSN/ISBN Number*")
+                            url = st.text_input("URL*")
+                            date_span, scope = "NA", "NA"
+                        elif r_type in ["Paper Presentation", "FDP", "Workshop"]:
+                            date_span = st.text_input("Date Span*")
+                            scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
+                            index_type, issn, url = "NA", "NA", "NA"
+                        
+                        collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
+                        upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                        
+                        if st.form_submit_button("Commit Entry"):
+                            if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                                st.error("Submission rejected: Data entry is currently disabled.")
+                            elif not upload: st.error("Verification mandatory!")
+                            elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
+                            elif not title or not org: st.error("Title and Organisation are mandatory!")
+                            else:
+                                drive_folder_id = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
+                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [drive_folder_id], creds)
+                                new_row = [current_faculty_name, form_focus, r_type, index_type, title, drive_link, date_span, url, org, scope, scope, org, issn, form_month]
+                                append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
+                                st.success("🎉 Research entry submitted successfully!")
 
-            elif classification == "🏆 Faculty Profiles & Milestones":
-                target_sheet = "Faculty_Achievements"
-                subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
-                if subtype == "Certification/Course": 
-                    styled_block("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
-                elif subtype == "Presentation/Resource Person": 
-                    styled_block("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
-                elif subtype == "Doctoral Milestone": 
-                    styled_block("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
-                elif subtype == "Award/Honor": 
-                    styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
-                
-                with st.form("faculty_form", clear_on_submit=True):
-                    narrative_input = st.text_area("Achievement Narrative*")
-                    upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                    if st.form_submit_button("Submit Profile"):
-                        if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
-                            st.error("Submission rejected: Data entry is currently disabled.")
-                        elif not upload or not narrative_input.strip(): st.error("Verification and narrative statement mandatory!")
-                        else:
-                            creds = get_google_credentials()
-                            drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
-                            new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, subtype, narrative_input.strip(), current_faculty_name, drive_link]
-                            append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
-                            st.success("🎉 Profile submitted!")
+                elif classification == "🏆 Faculty Profiles & Milestones":
+                    target_sheet = "Faculty_Achievements"
+                    subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
+                    if subtype == "Certification/Course": 
+                        styled_block("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
+                    elif subtype == "Presentation/Resource Person": 
+                        styled_block("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
+                    elif subtype == "Doctoral Milestone": 
+                        styled_block("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
+                    elif subtype == "Award/Honor": 
+                        styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
+                    
+                    with st.form("faculty_form", clear_on_submit=True):
+                        narrative_input = st.text_area("Achievement Narrative*")
+                        upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                        if st.form_submit_button("Submit Profile"):
+                            if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                                st.error("Submission rejected: Data entry is currently disabled.")
+                            elif not upload or not narrative_input.strip(): st.error("Verification and narrative statement mandatory!")
+                            else:
+                                drive_folder_id = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
+                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [drive_folder_id], creds)
+                                new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_focus, form_month, form_year, subtype, narrative_input.strip(), current_faculty_name, drive_link]
+                                append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
+                                st.success("🎉 Profile submitted!")
 
-            elif classification == "👥 Departmental & Student Contributions":
-                target_sheet = "Student_Activities"
-                styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
-                with st.form("student_form", clear_on_submit=True):
-                    description = st.text_area("Description*")
-                    upload = st.file_uploader("Upload Verification Document (Mandatory)*")
-                    if st.form_submit_button("Submit Contribution"):
-                        if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
-                            st.error("Submission rejected: Data entry is currently disabled.")
-                        elif not upload or not description.strip(): st.error("Verification and description mandatory!")
-                        else:
-                            creds = get_google_credentials()
-                            drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
-                            new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, "Institutional Contribution", description.strip(), current_faculty_name, drive_link]
-                            append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
-                            st.success("🎉 Contribution submitted!")
+                elif classification == "👥 Departmental & Student Contributions":
+                    target_sheet = "Student_Activities"
+                    styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
+                    with st.form("student_form", clear_on_submit=True):
+                        description = st.text_area("Description*")
+                        upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                        if st.form_submit_button("Submit Contribution"):
+                            if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                                st.error("Submission rejected: Data entry is currently disabled.")
+                            elif not upload or not description.strip(): st.error("Verification and description mandatory!")
+                            else:
+                                drive_folder_id = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
+                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [drive_folder_id], creds)
+                                new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_focus, form_month, form_year, "Institutional Contribution", description.strip(), current_faculty_name, drive_link]
+                                append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
+                                st.success("🎉 Contribution submitted!")
+
+                elif classification == "🏢 Committees / Cells / Clubs Activity Log":
+                    target_sheet = "Committees_Cells_Clubs"
+                    styled_block("[Committee Name], organized [Event Type/Activity Details] on [Date Topic Span].", "The Placement Cell coordinated a campus recruitment drive with Deloitte for final year commerce students on May 18, 2026.")
+                    
+                    with st.form("committees_ledger_form", clear_on_submit=True):
+                        narrative_input = st.text_area("Narrative Log Description*")
+                        event_date = st.date_input("Date of Event Activity*", value=datetime.date.today())
+                        upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                        
+                        if st.form_submit_button("Commit Committee Record"):
+                            if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                                st.error("Submission rejected: Data entry is currently disabled.")
+                            elif not upload or not narrative_input.strip(): 
+                                st.error("Log Description and verification attachment are strictly mandatory fields!")
+                            else:
+                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, ["1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"], creds)
+                                new_row = [
+                                    form_focus, 
+                                    current_faculty_name, 
+                                    form_month, 
+                                    form_year, 
+                                    narrative_input.strip(), 
+                                    str(event_date)
+                                ]
+                                append_and_sort_sheet_by_department(target_sheet, new_row, 0, creds)
+                                st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
 
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
@@ -411,7 +461,7 @@ with tab_document:
         with st.spinner("Assembling structured records from sheets..."):
             docx_bytes = build_monthly_word_document(view_dept, view_month, view_year, creds)
             file_name_string = f"Monthly_Staff_Achievements_Report_{view_dept.replace(' ', '_')}_{view_month}_{view_year}.docx"
-            upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [DEPARTMENT_FOLDERS[view_dept]], creds)
+            upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [DEPARTMENT_FOLDERS.get(view_dept, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")], creds)
             st.success(f"🎯 Document synchronized into your Department Drive folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
