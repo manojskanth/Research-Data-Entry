@@ -516,4 +516,4 @@ with tab_document:
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
 st.markdown("---")
-st.markdown("<div style='text-align: center; color: gray;'>Developed by Research Committee @ St. Mary's College</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: dark red;'>Developed by Research Committee @ St. Mary's College</div>", unsafe_allow_html=True)
