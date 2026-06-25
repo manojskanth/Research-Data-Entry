@@ -462,7 +462,7 @@ with tab_submit:
         else:
             creds = get_google_credentials()
             target_sheet = "Committees_Cells_Clubs"
-            styled_block("[Committee Name], organized [Event Type/Activity Details] on [Date Topic Span].", "The Placement Cell coordinated a campus recruitment drive with Deloitte for final year commerce students on May 18, 2026.")
+            styled_block("[Committee Name], organized [Event Type/Activity Details] on [Date].", "The Placement Cell coordinated a campus recruitment drive with Deloitte for final year commerce students on May 18, 2026.")
             
             with st.form("committees_ledger_form", clear_on_submit=True):
                 narrative_input = st.text_area("Narrative Log Description*")
