@@ -306,7 +306,7 @@ if not st.session_state.authenticated:
     with img_col:
         st.image("logo.png", use_container_width=True)
         
-    st.markdown("<h2 style='text-align: center;'>🔐 St. Mary's Central Achievements Gateway</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>St. Mary's Central Achievements Portal</h2>", unsafe_allow_html=True)
     _, col_l2, _ = st.columns([1, 1.5, 1])
     with col_l2:
         input_email = st.text_input("College Email Address").strip().lower()
