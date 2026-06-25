@@ -231,7 +231,7 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
     doc.save(doc_stream)
     return doc_stream.getvalue()
 
-def 'Research Data Final Code'(format_text, example_text):
+def styled_block(format_text, example_text):
     html_string = f"""
 <div style="background-color: #FFFFFF; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #EAECEF; margin-bottom: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
     <div style="display: flex; align-items: flex-start; margin-bottom: 14px;">
@@ -255,7 +255,6 @@ if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = Tru
 st.set_page_config(page_title="St. Mary's Integrated Portal", page_icon="🏫", layout="wide")
 
 if not st.session_state.authenticated:
-    # Centered design tracking
     _, img_col, _ = st.columns([2, 1, 2])
     with img_col:
         st.image("logo.png", use_container_width=True)
@@ -295,7 +294,7 @@ with tab_admin:
             key="admin_toggle_widget", 
             value=st.session_state.get("admin_enabled", True)
         )
-        st.session_state.admin_enabled = st.admin_toggle_widget
+        st.session_state.admin_enabled = st.session_state.admin_toggle_widget
     else: 
         st.warning("Unauthorized access.")
 
@@ -360,13 +359,13 @@ with tab_submit:
                 target_sheet = "Faculty_Achievements"
                 subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
                 if subtype == "Certification/Course": 
-                    'Research Data Final Code'("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
+                    styled_block("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
                 elif subtype == "Presentation/Resource Person": 
-                    'Research Data Final Code'("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
+                    styled_block("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
                 elif subtype == "Doctoral Milestone": 
-                    'Research Data Final Code'("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
+                    styled_block("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
                 elif subtype == "Award/Honor": 
-                    'Research Data Final Code'("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
+                    styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
                 
                 with st.form("faculty_form", clear_on_submit=True):
                     narrative_input = st.text_area("Achievement Narrative*")
@@ -384,7 +383,7 @@ with tab_submit:
 
             elif classification == "👥 Departmental & Student Contributions":
                 target_sheet = "Student_Activities"
-                'Research Data Final Code'("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
+                styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
                 with st.form("student_form", clear_on_submit=True):
                     description = st.text_area("Description*")
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
