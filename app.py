@@ -277,8 +277,9 @@ with tab_admin:
     else: st.warning("Unauthorized access.")
 
 with tab_submit:
+    # 1. Check globally at the top of the tab if entry is disabled
     if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
-        st.error("Data entry is currently disabled by the Administrator.")
+        st.error("🔒 Data entry is currently disabled by the Administrator.")
     else:
         st.subheader("Add Monthly Achievement Entry")
         col1, col2, col3 = st.columns(3)
@@ -314,13 +315,15 @@ with tab_submit:
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                     
                     if st.form_submit_button("Commit Entry"):
-                        if not upload: st.error("Verification mandatory!")
+                        # DOUBLE-GUARD: Check toggle parameter right on button execution
+                        if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
+                            st.error("Submission rejected: Data entry was disabled while you were filling the form.")
+                        elif not upload: st.error("Verification mandatory!")
                         elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
                         elif not title or not org: st.error("Title and Organisation are mandatory!")
                         else:
                             creds = get_google_credentials()
                             drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
-                            
                             new_row = [
                                 current_faculty_name, form_dept, r_type, index_type, title, 
                                 drive_link, date_span, url, org, scope, scope, org, issn, form_month
@@ -328,6 +331,51 @@ with tab_submit:
                             append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
                             st.success("🎉 Research entry submitted successfully!")
 
+            elif classification == "🏆 Faculty Profiles & Milestones":
+                target_sheet = "Faculty_Achievements"
+                subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
+                
+                if subtype == "Certification/Course": 
+                    'Research Data Final Code'("[Name], [Certification Title/Course Name], [Issuing Body], [Result/Grade/Medal if applicable].", "Mr. MSS Roy successfully completed an 8-week NPTEL certification course in 'Advanced Corporate Governance' with an Elite Silver Medal, organized by IIT Madras.")
+                elif subtype == "Presentation/Resource Person": 
+                    'Research Data Final Code'("[Name], [Role: Guest Speaker/Judge/Facilitator], '[Topic/Title],' [Organizing Event Name/Department/Institution], [Date].", "Dr. Rajita Anand Singh acted as a Resource Person and delivered an invited lecture on 'Emerging Trends in Literary Criticism' for the National Colloquium organized by the Department of English, St. Mary's College on June 15, 2026.")
+                elif subtype == "Doctoral Milestone": 
+                    'Research Data Final Code'("[Name], [Milestone Achieved], '[Research Topic],' [University/Institution], [Date].", "Ms. Shima A.N successfully completed her Ph.D. Viva-Voce examination for her doctoral thesis titled 'A Comprehensive Evaluation of Cloud Workloads' at Osmania University.")
+                elif subtype == "Award/Honor": 
+                    'Research Data Final Code'("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
+                
+                with st.form("faculty_form", clear_on_submit=True):
+                    narrative_input = st.text_area("Achievement Narrative*")
+                    upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                    if st.form_submit_button("Submit Profile"):
+                        # DOUBLE-GUARD: Check toggle parameter right on button execution
+                        if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
+                            st.error("Submission rejected: Data entry was disabled while you were filling the form.")
+                        elif not upload or not narrative_input.strip(): st.error("Verification and narrative statement mandatory!")
+                        else:
+                            creds = get_google_credentials()
+                            drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
+                            new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, subtype, narrative_input.strip(), current_faculty_name, drive_link]
+                            append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
+                            st.success("🎉 Profile submitted!")
+
+            elif classification == "👥 Departmental & Student Contributions":
+                target_sheet = "Student_Activities"
+                'Research Data Final Code'("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
+                with st.form("student_form", clear_on_submit=True):
+                    description = st.text_area("Description*")
+                    upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                    if st.form_submit_button("Submit Contribution"):
+                        # DOUBLE-GUARD: Check toggle parameter right on button execution
+                        if not st.session_state.admin_enabled and st.session_state.logged_email != "research@stmaryscollege.in":
+                            st.error("Submission rejected: Data entry was disabled while you were filling the form.")
+                        elif not upload or not description.strip(): st.error("Verification and description mandatory!")
+                        else:
+                            creds = get_google_credentials()
+                            drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [DEPARTMENT_FOLDERS[form_dept]], creds)
+                            new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_dept, form_month, form_year, "Institutional Contribution", description.strip(), current_faculty_name, drive_link]
+                            append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
+                            st.success("🎉 Contribution submitted!")
             elif classification == "🏆 Faculty Profiles & Milestones":
                 target_sheet = "Faculty_Achievements"
                 subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
