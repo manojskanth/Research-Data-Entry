@@ -65,22 +65,42 @@ FACULTY_DIRECTORY = {
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"},
-    # Added Faculty Records
+    # Yesterday's additions
     "deepa@stmaryscollege.in": {"name": "Dr. Deepa", "secret_key": "deepa_pass"},
     "harini@stmaryscollege.in": {"name": "Ms. Harini", "secret_key": "harini_pass"}
 }
 
 # --- 2. HELPERS ---
 def get_google_credentials():
-    # Decode the Base64 representation directly to guarantee a pristine cryptographic structure
-    encoded_key = st.secrets["GCP_B64_KEY"]
-    clean_key = base64.b64decode(encoded_key.encode('utf-8')).decode('utf-8')
+    formatted_pem_key = None
     
+    # Channel A: Try to evaluate Base64 string directly first
+    if "GCP_B64_KEY" in st.secrets and st.secrets["GCP_B64_KEY"].strip():
+        try:
+            encoded = st.secrets["GCP_B64_KEY"].strip()
+            formatted_pem_key = base64.b64decode(encoded.encode('utf-8')).decode('utf-8')
+        except Exception:
+            pass
+
+    # Channel B: Fallback to reading GCP_PRIVATE_KEY_V2 or standard key raw structures
+    if not formatted_pem_key:
+        raw_key = st.secrets.get("GCP_PRIVATE_KEY_V2", st.secrets.get("GCP_PRIVATE_KEY", ""))
+        if raw_key:
+            # Strip formatting noise safely
+            clean_body = raw_key.replace("\\n", "").replace("\n", "").replace("\r", "").replace(" ", "").strip()
+            clean_body = clean_body.replace("-----BEGINPRIVATEKEY-----", "").replace("-----ENDPRIVATEKEY-----", "").strip()
+            # Wrap clean text strings back at exactly 64 characters per line
+            chunks = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
+            formatted_pem_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
+
+    if not formatted_pem_key:
+        raise ValueError("Google Cloud Private Key structural configuration not discovered inside Streamlit Secrets.")
+
     info = {
         "type": st.secrets["GCP_TYPE"],
         "project_id": st.secrets["GCP_PROJECT_ID"],
         "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-        "private_key": clean_key,
+        "private_key": formatted_pem_key,
         "client_email": st.secrets["GCP_CLIENT_EMAIL"],
         "client_id": st.secrets["GCP_CLIENT_ID"],
         "token_uri": st.secrets["GCP_TOKEN_URI"]
