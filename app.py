@@ -2,11 +2,12 @@ import streamlit as st
 import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 import io
 import json
 import base64
 from docx import Document
-from docx.shared import Pt  # Needed for explicit font metric configurations
+from docx.shared import Pt
 
 # --- 1. CONFIG & FULL FACULTY DIRECTORY ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
@@ -76,14 +77,33 @@ def get_google_credentials():
     encoded_json = st.secrets["GCP_COMPLETE_B64"]
     decoded_json_string = base64.b64decode(encoded_json.encode('utf-8')).decode('utf-8')
     info = json.loads(decoded_json_string)
-    
-    return service_account.Credentials.from_service_account_info(
-        info, 
-        scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    )
+    return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
 
-def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
-    return "Drive Sync Ready"
+def append_to_sheet(sheet_name, row_values, creds):
+    try:
+        service = build('sheets', 'v4', credentials=creds)
+        body = {'values': [row_values]}
+        service.spreadsheets().values().append(
+            spreadsheetId=MASTER_SHEET_ID,
+            range=f"'{sheet_name}'!A1",
+            valueInputOption="RAW",
+            body=body
+        ).execute()
+        return True
+    except Exception as e:
+        st.error(f"Google Sheet error: {e}")
+        return False
+
+def upload_file_to_drive(uploaded_file, folder_id, creds):
+    try:
+        service = build('drive', 'v3', credentials=creds)
+        file_metadata = {'name': uploaded_file.name, 'parents': [folder_id]}
+        media = MediaIoBaseUpload(io.BytesIO(uploaded_file.getvalue()), mimetype=uploaded_file.type, resumable=True)
+        file_asset = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+        return file_asset.get('webViewLink', "Drive Sync Ready")
+    except Exception as e:
+        st.error(f"Google Drive upload error: {e}")
+        return "Upload Error Link"
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(dept_name, active_month, active_year, creds):
@@ -129,7 +149,6 @@ def build_monthly_word_document(dept_name, active_month, active_year, creds):
             for row in rows[1:]:
                 if len(row) >= 2:
                     padded = pad_row(row, required_length=15)
-                    
                     if sec["sheet"] == "Research_Database":
                         row_dept, row_cat, row_month = padded[1], padded[2], padded[13]
                     else:
@@ -194,6 +213,7 @@ if not st.session_state.authenticated:
         if email in FACULTY_DIRECTORY and pw == st.secrets.get(FACULTY_DIRECTORY[email]["secret_key"], "welcome@2026"):
             st.session_state.authenticated = True
             st.session_state.logged_email = email
+            st.session_state.faculty_name = FACULTY_DIRECTORY[email]["name"]
             st.rerun()
         else: st.error("Invalid credentials.")
     st.stop()
@@ -222,6 +242,9 @@ with tab_submit:
         ])
 
         if classification != "--- Select Category ---":
+            creds = get_google_credentials()
+            folder_target_id = DEPARTMENT_FOLDERS.get(form_dept)
+
             if classification == "🔬 Research Database":
                 r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
                 collab_check = st.checkbox("Collaboration involved?", key="collab_box")
@@ -234,9 +257,11 @@ with tab_submit:
                         index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care", "Scopus", "PubMed", "ABDC", "SCIE", "Embase", "Peer Reviewed", "DOAJ", "Other"])
                         issn = st.text_input("ISSN/ISBN Number*")
                         url = st.text_input("URL*")
+                        date_span, scope = "", ""
                     elif r_type in ["Paper Presentation", "FDP", "Workshop"]:
                         date_span = st.text_input("Date Span*")
                         scope = st.selectbox("Scope*", ["International", "National", "State", "Institutional"])
+                        index_type, issn, url = "", "", ""
                     
                     collab_names = st.text_input("Enter Collaborator Names*") if st.session_state.collab_box else ""
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
@@ -245,7 +270,18 @@ with tab_submit:
                         if not upload: st.error("Verification mandatory!")
                         elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
                         elif not title or not org: st.error("Title and Organisation are mandatory!")
-                        else: st.success("Research entry submitted!")
+                        else:
+                            with st.spinner("Uploading to Google Drive..."):
+                                drive_url = upload_file_to_drive(upload, folder_target_id, creds)
+                            
+                            row_data = [
+                                st.session_state.faculty_name, form_dept, r_type, index_type, title,
+                                collab_names if collab_names else "Self", date_span, url, org, scope, scope, org, issn, form_month, form_year, drive_url
+                            ]
+                            
+                            with st.spinner("Writing to Master Spreadsheet..."):
+                                if append_to_sheet("Research_Database", row_data, creds):
+                                    st.success("🔬 Research Database Log Written Successfully!")
 
             elif classification == "🏆 Faculty Profiles & Milestones":
                 subtype = st.selectbox("Select Profile Subtype", ["Certification/Course", "Presentation/Resource Person", "Doctoral Milestone", "Award/Honor"])
@@ -259,20 +295,39 @@ with tab_submit:
                     styled_block("[Name], [Title of Award/Recognition], [Awarding Body/Organization], [Date].", "Dr. Deepthi Priya was conferred with the 'Best Faculty Researcher Award 2026' by the Institute of Scholar Recognitions on May 12, 2026.")
                 
                 with st.form("faculty_form", clear_on_submit=True):
-                    st.text_area("Achievement Narrative*")
+                    narrative = st.text_area("Achievement Narrative*")
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                    
                     if st.form_submit_button("Submit Profile"):
-                        if not upload: st.error("Verification mandatory!")
-                        else: st.success("Profile submitted!")
+                        if not upload or not narrative.strip(): st.error("Narrative description and verification upload are mandatory!")
+                        else:
+                            with st.spinner("Uploading to Google Drive..."):
+                                drive_url = upload_file_to_drive(upload, folder_target_id, creds)
+                            
+                            row_data = [st.session_state.faculty_name, form_dept, subtype, form_year, form_month, narrative, drive_url]
+                            
+                            with st.spinner("Writing to Master Spreadsheet..."):
+                                if append_to_sheet("Faculty_Achievements", row_data, creds):
+                                    st.success("🏆 Faculty Profile Milestones Log Written Successfully!")
 
             elif classification == "👥 Departmental & Student Contributions":
                 styled_block("[Coordinator/Dept], [Type of Event/Activity], [Beneficiaries/Location], [Date].", "The Department of Sciences hosted an Inter-Collegiate Science Exhibition titled 'Eco-Innovate 2026' for undergraduate students of regional colleges on April 22, 2026.")
+                
                 with st.form("student_form", clear_on_submit=True):
-                    st.text_area("Description*")
+                    description = st.text_area("Description*")
                     upload = st.file_uploader("Upload Verification Document (Mandatory)*")
+                    
                     if st.form_submit_button("Submit Contribution"):
-                        if not upload: st.error("Verification mandatory!")
-                        else: st.success("Contribution submitted!")
+                        if not upload or not description.strip(): st.error("Activity description and verification upload are mandatory!")
+                        else:
+                            with st.spinner("Uploading to Google Drive..."):
+                                drive_url = upload_file_to_drive(upload, folder_target_id, creds)
+                            
+                            row_data = [st.session_state.faculty_name, form_dept, "Institutional Contribution", form_year, form_month, description, drive_url]
+                            
+                            with st.spinner("Writing to Master Spreadsheet..."):
+                                if append_to_sheet("Student_Activities", row_data, creds):
+                                    st.success("👥 Departmental/Student Activity Log Written Successfully!")
 
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
