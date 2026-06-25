@@ -150,7 +150,7 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
         st.error(f"Sorting Error: {str(e)}")
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
-def build_monthly_word_document(target_scope, name_focus, active_month, active_year, creds):
+def build_monthly_word_document(name_focus, active_month, active_year, creds):
     doc = Document()
     doc.styles['Normal'].font.name = 'Times New Roman'
     doc.styles['Normal'].font.size = Pt(12)
@@ -160,20 +160,18 @@ def build_monthly_word_document(target_scope, name_focus, active_month, active_y
     title_p.runs[0].font.size = Pt(14)
     
     scope_p = doc.add_paragraph()
-    if target_scope == "Department":
-        scope_p.add_run(f"DEPARTMENT OF {name_focus.upper()}\n").bold = True
-    else:
-        scope_p.add_run(f"COMMITTEE / CELL / CLUB: {name_focus.upper()}\n").bold = True
-    scope_p.runs[0].font.size = Pt(13)
     
     sheets_service = build('sheets', 'v4', credentials=creds)
     month_map = {"jan": "january", "feb": "february", "mar": "march", "apr": "april", "may": "may", "jun": "june", "jul": "july", "aug": "august", "sep": "september", "oct": "october", "nov": "november", "dec": "december"}
     target_month_clean = str(active_month).strip().lower()
 
-    # --- 🏢 HANDLE COMMITTEE SCOPE GENERATION (FROM 4TH SHEET ONLY) ---
-    if target_scope == "Committee / Cell / Club":
-        doc.add_paragraph().add_run("I. Committee Activity Logs & Event Narratives").bold = True
-        doc.add_paragraph().add_run("Chronological record of organized events, initiatives, and execution statements.").font.italic = True
+    # --- 🏢 UNIFIED COMMITTEE MASTER DOCUMENT DISPATCH (FROM 4TH SHEET) ---
+    if name_focus == "Committees / Cells / Clubs":
+        scope_p.add_run("COMMITTEES / CELLS / CLUBS MASTER DOSSIER\n").bold = True
+        scope_p.runs[0].font.size = Pt(13)
+        
+        doc.add_paragraph().add_run("I. Consolidated Committee Activity Logs & Event Narratives").bold = True
+        doc.add_paragraph().add_run("Chronological record of organized events, initiatives, and execution statements across all campus cells.").font.italic = True
         
         try:
             res = sheets_service.spreadsheets().values().get(spreadsheetId=MASTER_SHEET_ID, range="'Committees_Cells_Clubs'!A1:F1000").execute()
@@ -185,7 +183,7 @@ def build_monthly_word_document(target_scope, name_focus, active_month, active_y
         if len(rows) > 1:
             for row in rows[1:]:
                 if len(row) >= 5:
-                    # Layout sequence: [0: Committee Name] [1: Faculty in-charge] [2: Month] [3: Year] [4: Narrative] [5: Date]
+                    # Sequence layout: [0: Committee Name] [1: Faculty in-charge] [2: Month] [3: Year] [4: Narrative] [5: Date]
                     row_comm, row_faculty, row_month, row_year, row_narrative = row[0], row[1], row[2], row[3], row[4]
                     normalized_row_month = str(row_month).strip().lower()
                     
@@ -193,8 +191,10 @@ def build_monthly_word_document(target_scope, name_focus, active_month, active_y
                                   (target_month_clean[:3] in normalized_row_month) or \
                                   (normalized_row_month in month_map and month_map[normalized_row_month] == target_month_clean)
                     
-                    if str(row_comm).strip().lower() == str(name_focus).strip().lower() and month_match and str(row_year).strip() == str(active_year).strip():
+                    if month_match and str(row_year).strip() == str(active_year).strip():
                         p = doc.add_paragraph(style='List Bullet')
+                        # Bold the specific committee prefixing the layout narrative
+                        p.add_run(f"[{row_comm}] ").bold = True
                         p.add_run(f"{row_narrative} (In-charge: {row_faculty})")
                         has_data = True
                         
@@ -205,7 +205,10 @@ def build_monthly_word_document(target_scope, name_focus, active_month, active_y
         doc.save(doc_stream)
         return doc_stream.getvalue()
 
-    # --- 🔬 HANDLE DEPARTMENT SCOPE GENERATION (FROM ORIGINAL 3 SHEETS) ---
+    # --- 🔬 STANDARD DEPARTMENT ENGINE SCOPE (FROM ORIGINAL 3 SHEETS) ---
+    scope_p.add_run(f"DEPARTMENT OF {name_focus.upper()}\n").bold = True
+    scope_p.runs[0].font.size = Pt(13)
+    
     sections = [
         {"title": "I. Research Publications & Paper Presentations", "sheet": "Research_Database", "filter": ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation"], "desc": "Include journal articles, book chapters, full books, or papers presented at conferences."},
         {"title": "II. Faculty Development Programs (FDPs) & Workshops", "sheet": "Research_Database", "filter": ["FDP", "Workshop"], "desc": "Include training programs attended or successfully completed."},
@@ -490,15 +493,14 @@ with tab_submit:
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
-    # Radios to pick between Department or Committee tracking scopes
-    view_scope_type = st.radio("Target File Generation Scope", ["Department", "Committee / Cell / Club"], key="v_scope", horizontal=True)
-    
     col_d1, col_d2, col_d3 = st.columns(3)
     with col_d1:
-        if view_scope_type == "Department":
-            view_focus = st.selectbox("Target Department File Scope", DEPARTMENTS, key="vd1")
-        else:
-            view_focus = st.selectbox("Target Committee / Cell / Club Scope", COMMITTEES_CELLS_CLUBS, key="vc1")
+        # Appended the master unified scope string directly inside your default select box choices list
+        view_focus = st.selectbox(
+            "Target Department / Scope Scope", 
+            DEPARTMENTS + ["Committees / Cells / Clubs"], 
+            key="vd1"
+        )
             
     with col_d2: view_month = st.selectbox("Target Month Scope", MONTHS, key="vm1")
     with col_d3: view_year = st.selectbox("Target Year Scope", ACADEMIC_YEARS, key="vy1")
@@ -506,11 +508,11 @@ with tab_document:
     if st.button("🏗️ Construct Automated Monthly Document Package", use_container_width=True, type="primary"):
         creds = get_google_credentials()
         with st.spinner("Assembling structured records from sheets..."):
-            docx_bytes = build_monthly_word_document(view_scope_type, view_focus, view_month, view_year, creds)
+            docx_bytes = build_monthly_word_document(view_focus, view_month, view_year, creds)
             file_name_string = f"Monthly_Achievements_Report_{view_focus.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
             # Save into dedicated drive or fallback default vault folder
-            target_folder = DEPARTMENT_FOLDERS.get(view_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-") if view_scope_type == "Department" else "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"
+            target_folder = DEPARTMENT_FOLDERS.get(view_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [target_folder], creds)
             
             st.success(f"🎯 Document synchronized into your Drive repository folder automatically!")
