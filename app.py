@@ -64,21 +64,29 @@ FACULTY_DIRECTORY = {
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"},
-    # --- YESTERDAY'S NEW ADDITIONS ---
+    # New yesterday additions
     "deepa@stmaryscollege.in": {"name": "Dr. Deepa", "secret_key": "deepa_pass"},
     "harini@stmaryscollege.in": {"name": "Ms. Harini", "secret_key": "harini_pass"}
 }
 
 # --- 2. HELPERS ---
 def get_google_credentials():
-    # Native parsing of flat configuration parameters matching your secrets.toml exactly
-    clean_key = st.secrets["GCP_PRIVATE_KEY_V2"].replace("\\n", "\n")
+    # Target GCP_PRIVATE_KEY natively and clean text escape anomalies safely
+    raw_key = st.secrets["GCP_PRIVATE_KEY"]
+    
+    # Force single-line representation to drop backslash fragments or spaces
+    clean_body = raw_key.replace("\\n", "").replace("\n", "").replace("\r", "").strip()
+    clean_body = clean_body.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").strip()
+    
+    # Reconstruct perfectly at exactly 64 characters per line as cryptography demands
+    chunks = [clean_body[i:i+64] for i in range(0, len(clean_body), 64)]
+    formatted_pem_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
     
     info = {
         "type": st.secrets["GCP_TYPE"],
         "project_id": st.secrets["GCP_PROJECT_ID"],
         "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
-        "private_key": clean_key,
+        "private_key": formatted_pem_key,
         "client_email": st.secrets["GCP_CLIENT_EMAIL"],
         "client_id": st.secrets["GCP_CLIENT_ID"],
         "token_uri": st.secrets["GCP_TOKEN_URI"]
