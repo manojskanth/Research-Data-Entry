@@ -3,7 +3,6 @@ import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import io
-import json
 from docx import Document
 
 # --- 1. CONFIG & FULL FACULTY DIRECTORY ---
@@ -64,12 +63,26 @@ FACULTY_DIRECTORY = {
     "aksharasingh@stmaryscollege.in": {"name": "Dr. Akshara Singh", "secret_key": "akshara_pass"},
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
-    "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"}
+    "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"},
+    # --- YESTERDAY'S NEW ADDITIONS ---
+    "deepa@stmaryscollege.in": {"name": "Dr. Deepa", "secret_key": "deepa_pass"},
+    "harini@stmaryscollege.in": {"name": "Ms. Harini", "secret_key": "harini_pass"}
 }
 
 # --- 2. HELPERS ---
 def get_google_credentials():
-    info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT"], strict=False)
+    # Native parsing of flat configuration parameters matching your secrets.toml exactly
+    clean_key = st.secrets["GCP_PRIVATE_KEY_V2"].replace("\\n", "\n")
+    
+    info = {
+        "type": st.secrets["GCP_TYPE"],
+        "project_id": st.secrets["GCP_PROJECT_ID"],
+        "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
+        "private_key": clean_key,
+        "client_email": st.secrets["GCP_CLIENT_EMAIL"],
+        "client_id": st.secrets["GCP_CLIENT_ID"],
+        "token_uri": st.secrets["GCP_TOKEN_URI"]
+    }
     return service_account.Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
 
 def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
