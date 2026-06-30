@@ -210,6 +210,7 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
     scope_p.add_run(f"DEPARTMENT OF {name_focus.upper()}\n").bold = True
     scope_p.runs[0].font.size = Pt(13)
     
+    # --- MODIFIED DATA EXTRACTION LAYER ---
     sections = [
         {"title": "I. Research Publications & Paper Presentations", "sheet": "Research_Database", "filter": ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation"], "desc": "Include journal articles, book chapters, full books, or papers presented at conferences."},
         {"title": "II. Faculty Development Programs (FDPs) & Workshops", "sheet": "Research_Database", "filter": ["FDP", "Workshop"], "desc": "Include training programs attended or successfully completed."},
@@ -239,10 +240,15 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
                 if len(row) >= 2:
                     padded = pad_row(row, required_length=15)
                     
+                    # Exact tracking offsets assigned based on the structural column layouts of each tab
                     if sec["sheet"] == "Research_Database":
                         row_dept, row_cat, row_month = padded[1], padded[2], padded[13]
+                    elif sec["sheet"] == "Faculty_Achievements":
+                        row_dept, row_cat, row_month = padded[1], padded[4], padded[2]
+                    elif sec["sheet"] == "Student_Activities":
+                        row_dept, row_cat, row_month = padded[1], padded[4], padded[2]
                     else:
-                        row_dept, row_cat, row_month = padded[1], padded[2], padded[4]
+                        row_dept, row_cat, row_month = padded[0], padded[4], padded[2]
                     
                     normalized_row_month = str(row_month).strip().lower()
                     
