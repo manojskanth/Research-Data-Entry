@@ -23,11 +23,14 @@ DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
 COMMITTEE_FOLDER_ID = "1pzrbGsViKtzsQYBPt-p9ZqQ5WXbzdHcW"
 
 DEPARTMENT_FOLDERS = {
+    "Commerce": "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-",
     "English & Languages": "14Nhs3qve5vDBbIT6GmzaRue51hvTzAOG",
-    "Social Sciences & Humanities": "1m0xEcv-WKQr8CWfHlZ5AuCWIFXAm1H5g",
-    "Sciences": "1u_KRBhdZhcWQ55CyVI0v042bIpC5FQfs",
+    "IQAC": "19XsVcpJZRMyS0YlQ0RpShUfpUoCzeJb-",
     "Management": "1VG3xY_SmhqmQ9BvSh6KvDXOptO3kHhsj",
-    "Commerce": "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-"
+    "Physical Education": "1DA71KvpfSrltvv5io7gaeVN0v8CAix1w",
+    "Research & Innovation": "1mRwg3vXDIZkTEkxBVDkJ-ruOsCsYsYnY",
+    "Sciences": "1u_KRBhdZhcWQ55CyVI0v042bIpC5FQfs",
+    "Social Sciences & Humanities": "1m0xEcv-WKQr8CWfHlZ5AuCWIFXAm1H5g"
 }
 
 FACULTY_DIRECTORY = {
@@ -86,7 +89,12 @@ FACULTY_DIRECTORY = {
     "priyamishra@stmaryscollege.in": {"name": "Dr. Priya Mishra", "secret_key": "priyamishra_pass"},
     "deepa@stmaryscollege.in": {"name": "Ms. Deepa Agraval", "secret_key": "deepaagraval_pass"},
     "nsrinath@stmaryscollege.in": {"name": "Dr. Srinath Naganathan", "secret_key": "nsrinath_pass"},
-    "chrislenina@stmaryscollege.in": {"name": "Dr. Chris Lenina", "secret_key": "chrislenina_pass"}
+    "chrislenina@stmaryscollege.in": {"name": "Dr. Chris Lenina", "secret_key": "chrislenina_pass"},
+    "sciences@stmaryscollege.in": {"name": "Department of Sciences", "secret_key": "sciences_pass"},
+    "languages@stmaryscollege.in": {"name": "Department of English & Languages", "secret_key": "languages_pass"},
+    "businessmanagement@stmaryscollege.in": {"name": "Department of Management", "secret_key": "businessmanagement_pass"},
+    "commerce@stmaryscollege.in": {"name": "Department of Commerce", "secret_key": "commerce_pass"},
+    "socialsciences@stmaryscollege.in": {"name": "Department of Social Sciences & Humanities", "secret_key": "socialsciences_pass"}
 }
 
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
@@ -102,6 +110,55 @@ def get_google_credentials():
     except Exception as e:
         st.error(f"Ecosystem Verification Block Error: {str(e)}")
         st.stop()
+
+def get_or_create_drive_folder(folder_name, parent_folder_id, creds):
+    """
+    Searches for a subfolder by name inside a parent Drive folder.
+    Creates it if it does not exist; reuses its ID if it already exists.
+    """
+    try:
+        drive_service = build('drive', 'v3', credentials=creds)
+        query = (
+            f"name = '{folder_name}' and "
+            f"'{parent_folder_id}' in parents and "
+            f"mimeType = 'application/vnd.google-apps.folder' and "
+            f"trashed = false"
+        )
+        results = drive_service.files().list(
+            q=query, 
+            fields="files(id, name)", 
+            supportsAllDrives=True, 
+            includeItemsFromAllDrives=True
+        ).execute()
+        
+        files = results.get('files', [])
+        if files:
+            return files[0]['id']
+            
+        folder_metadata = {
+            'name': folder_name,
+            'mimeType': 'application/vnd.google-apps.folder',
+            'parents': [parent_folder_id]
+        }
+        created_folder = drive_service.files().create(
+            body=folder_metadata, 
+            fields='id', 
+            supportsAllDrives=True
+        ).execute()
+        
+        try:
+            drive_service.permissions().create(
+                fileId=created_folder.get('id'), 
+                body={'type': 'anyone', 'role': 'reader'}, 
+                supportsAllDrives=True
+            ).execute()
+        except Exception:
+            pass
+            
+        return created_folder.get('id')
+    except Exception as e:
+        st.warning(f"⚠️ Drive folder setup fallback: {e}")
+        return parent_folder_id
 
 def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
     try:
@@ -416,8 +473,18 @@ with tab_submit:
                             elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
                             elif not title or not org: st.error("Title and Organisation are mandatory!")
                             else:
-                                drive_folder_id = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
-                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [drive_folder_id], creds)
+                                dept_base_folder = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
+                                logged_in_email = st.session_state.logged_email
+                                if logged_in_email in [
+                                    "sciences@stmaryscollege.in", "languages@stmaryscollege.in",
+                                    "businessmanagement@stmaryscollege.in", "commerce@stmaryscollege.in",
+                                    "socialsciences@stmaryscollege.in"
+                                ]:
+                                    target_folder = get_or_create_drive_folder("Department Activities", dept_base_folder, creds)
+                                else:
+                                    target_folder = get_or_create_drive_folder(current_faculty_name, dept_base_folder, creds)
+                                
+                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
                                 new_row = [current_faculty_name, form_focus, r_type, index_type, title, drive_link, date_span, url, org, scope, scope, org, issn, form_month]
                                 append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
                                 st.success("🎉 Research entry submitted successfully!")
@@ -442,8 +509,18 @@ with tab_submit:
                                 st.error("Submission rejected: Data entry is currently disabled.")
                             elif not upload or not narrative_input.strip(): st.error("Verification and narrative statement mandatory!")
                             else:
-                                drive_folder_id = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
-                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [drive_folder_id], creds)
+                                dept_base_folder = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
+                                logged_in_email = st.session_state.logged_email
+                                if logged_in_email in [
+                                    "sciences@stmaryscollege.in", "languages@stmaryscollege.in",
+                                    "businessmanagement@stmaryscollege.in", "commerce@stmaryscollege.in",
+                                    "socialsciences@stmaryscollege.in"
+                                ]:
+                                    target_folder = get_or_create_drive_folder("Department Activities", dept_base_folder, creds)
+                                else:
+                                    target_folder = get_or_create_drive_folder(current_faculty_name, dept_base_folder, creds)
+                                
+                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
                                 new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_focus, form_month, form_year, subtype, narrative_input.strip(), current_faculty_name, drive_link]
                                 append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
                                 st.success("🎉 Profile submitted!")
@@ -459,8 +536,18 @@ with tab_submit:
                                 st.error("Submission rejected: Data entry is currently disabled.")
                             elif not upload or not description.strip(): st.error("Verification and description mandatory!")
                             else:
-                                drive_folder_id = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
-                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [drive_folder_id], creds)
+                                dept_base_folder = DEPARTMENT_FOLDERS.get(form_focus, "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-")
+                                logged_in_email = st.session_state.logged_email
+                                if logged_in_email in [
+                                    "sciences@stmaryscollege.in", "languages@stmaryscollege.in",
+                                    "businessmanagement@stmaryscollege.in", "commerce@stmaryscollege.in",
+                                    "socialsciences@stmaryscollege.in"
+                                ]:
+                                    target_folder = get_or_create_drive_folder("Department Activities", dept_base_folder, creds)
+                                else:
+                                    target_folder = get_or_create_drive_folder(current_faculty_name, dept_base_folder, creds)
+                                
+                                drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
                                 new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_focus, form_month, form_year, "Institutional Contribution", description.strip(), current_faculty_name, drive_link]
                                 append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
                                 st.success("🎉 Contribution submitted!")
@@ -481,8 +568,8 @@ with tab_submit:
                     elif not upload or not narrative_input.strip(): 
                         st.error("Log Description and verification attachment are strictly mandatory fields!")
                     else:
-                        # Redirecting all committee uploads into your specified folder vault
-                        drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [COMMITTEE_FOLDER_ID], creds)
+                        target_folder = get_or_create_drive_folder(current_faculty_name, COMMITTEE_FOLDER_ID, creds)
+                        drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
                         new_row = [
                             form_focus, 
                             current_faculty_name, 
