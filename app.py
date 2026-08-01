@@ -49,6 +49,7 @@ FACULTY_DIRECTORY = {
     "rajyalakshmi@stmaryscollege.in": {"name": "Ms. Rajyalakshmi", "secret_key": "rajyalakshmi_pass"},
     "mahanta@stmaryscollege.in": {"name": "Ms. Mahanta Chauhan", "secret_key": "mahanta_pass"},
     "sharol@stmaryscollege.in": {"name": "Dr. Sharol Sebastian", "secret_key": "sharol_pass"},
+    "govindaraju@stmaryscollege.in": {"name": "Dr. Govind", "secret_key": "govind_pass"},
     "deepthipriya@stmaryscollege.in": {"name": "Dr. Deepthi Priya", "secret_key": "deepthipriya_pass"},
     "satabdi@stmaryscollege.in": {"name": "Dr. Satabdi Roy", "secret_key": "satabdi_pass"},
     "shima@stmaryscollege.in": {"name": "Ms. Shima A.N", "secret_key": "shima_pass"},
