@@ -35,7 +35,6 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July", "Augus
 
 DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
 
-# Dedicated folder vault repository mapping targets
 COMMITTEE_FOLDER_ID = "1pzrbGsViKtzsQYBPt-p9ZqQ5WXbzdHcW"
 
 DEPARTMENT_FOLDERS = {
@@ -231,6 +230,7 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
         st.error(f"Sorting Error: {str(e)}")
 
 def fetch_sheet_records(sheet_name, creds):
+    """Extracts raw records from Google Sheet tab into a formatted Pandas DataFrame."""
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
         res = sheets_service.spreadsheets().values().get(
@@ -240,8 +240,13 @@ def fetch_sheet_records(sheet_name, creds):
         rows = res.get('values', [])
         if not rows or len(rows) < 2:
             return pd.DataFrame()
-        return pd.DataFrame(rows[1:], columns=rows[0])
-    except Exception:
+        
+        # Determine maximum column width to prevent jagged row errors
+        headers = rows[0]
+        max_cols = len(headers)
+        data = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows[1:]]
+        return pd.DataFrame(data, columns=headers)
+    except Exception as e:
         return pd.DataFrame()
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
@@ -388,7 +393,7 @@ def styled_block(format_text, example_text):
 """.strip()
     st.markdown(html_string, unsafe_allow_html=True)
 
-# --- 4. WEBSITE FRONT-PAGE COMPONENTS (SCROLLING TICKER & GALLERY CARDS) ---
+# --- 4. WEBSITE FRONT-PAGE COMPONENTS ---
 def render_scrolling_ticker(announcements):
     ticker_text = " &nbsp;&nbsp;&nbsp; 🌟 &nbsp;&nbsp;&nbsp; ".join(announcements)
     ticker_html = f"""
@@ -410,7 +415,7 @@ def render_publication_achiever_card(author, dept, title, journal, indexing, lin
         "PubMed": "#006064"
     }
     badge_bg = badge_colors.get(indexing, "#374151")
-    link_html = f"<a href='{link_url}' target='_blank' style='color:#1A237E; font-weight:600; text-decoration:none;'>🔗 View Paper / Document</a>" if link_url and link_url != "Pending Folder Permissions Link" else ""
+    link_html = f"<a href='{link_url}' target='_blank' style='color:#1A237E; font-weight:600; text-decoration:none;'>🔗 View Paper / Document</a>" if link_url and link_url != "Pending Folder Permissions Link" and link_url != "NA" else ""
 
     card_html = f"""
     <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; margin-bottom: 20px; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
@@ -479,23 +484,27 @@ with logout_col:
         st.session_state.logged_email = ""
         st.rerun()
 
-# --- TAB NAVIGATION (WEBSITE HOMEPAGE FIRST) ---
-tab_gallery, tab_submit, tab_document, tab_admin = st.tabs([
+# --- EXTRACT DATA FROM ALL MASTER SHEETS ---
+res_df = fetch_sheet_records("Research_Database", creds)
+fac_df = fetch_sheet_records("Faculty_Achievements", creds)
+stu_df = fetch_sheet_records("Student_Activities", creds)
+comm_df = fetch_sheet_records("Committees_Cells_Clubs", creds)
+
+# --- TAB NAVIGATION ---
+tab_gallery, tab_explorer, tab_submit, tab_document, tab_admin = st.tabs([
     "🌐 Research Portal Home", 
+    "📋 Master Database Explorer",
     "📝 Enter Research Data", 
     "📊 Monthly Achievement Generator", 
     "🔒 Admin Control"
 ])
 
-# --- TAB 1: RESEARCH PORTAL HOME (FRONT PAGE & ACHIEVERS GALLERY) ---
+# --- TAB 1: RESEARCH PORTAL HOME ---
 with tab_gallery:
-    # 1. Fetch live records for ticker & cards
-    res_df = fetch_sheet_records("Research_Database", creds)
-    
-    # Construct ticker announcements
+    # 1. Scrolling News Ticker
     if not res_df.empty and len(res_df) > 0:
         ticker_items = []
-        for _, row in res_df.tail(10).iterrows():
+        for _, row in res_df.tail(8).iterrows():
             f_auth = row.iloc[0] if len(row) > 0 else "Faculty"
             f_title = row.iloc[4] if len(row) > 4 else "Research Paper"
             f_idx = row.iloc[3] if len(row) > 3 else "Indexed"
@@ -509,14 +518,27 @@ with tab_gallery:
             "Department of Sciences logs new indexed publication records"
         ])
 
+    # 2. Executive Analytics Snapshot
+    total_research = len(res_df) if not res_df.empty else 0
+    total_fac = len(fac_df) if not fac_df.empty else 0
+    total_stu = len(stu_df) if not stu_df.empty else 0
+    total_comm = len(comm_df) if not comm_df.empty else 0
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("🔬 Research Entries", total_research)
+    m2.metric("🏆 Faculty Milestones", total_fac)
+    m3.metric("👥 Department Initiatives", total_stu)
+    m4.metric("🏛️ Committee Activities", total_comm)
+
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
-    <div style="background-color:#F8FAFC; border-left: 5px solid #1A237E; padding:18px 22px; border-radius:6px; margin-bottom:25px;">
+    <div style="background-color:#F8FAFC; border-left: 5px solid #1A237E; padding:18px 22px; border-radius:6px; margin-bottom:20px;">
         <h3 style="margin:0 0 6px 0; color:#1A237E;">🏆 Faculty Research Achievers Gallery</h3>
-        <p style="margin:0; color:#475569; font-size:14px;">Showcasing top-tier publications in <b>Scopus, Web of Science, ABDC, SCIE, and UGC-CARE</b> journals.</p>
+        <p style="margin:0; color:#475569; font-size:14px;">Extracted directly from the Master Sheet. Showcasing publications in <b>Scopus, Web of Science, ABDC, SCIE, and UGC-CARE</b>.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # 2. Filter tabs for Indexed Types
+    # 3. Filterable Achievers Gallery
     gallery_filter = st.radio(
         "Filter by Indexation Database:", 
         ["All High-Impact", "Scopus", "Web of Science / SCIE", "ABDC", "UGC Care Listed"], 
@@ -528,12 +550,12 @@ with tab_gallery:
         for _, r in res_df.iterrows():
             idx_val = str(r.iloc[3]).strip() if len(r) > 3 else ""
             if gallery_filter == "All High-Impact":
-                if any(k in idx_val for k in ["Scopus", "Web of Science", "SCIE", "ABDC", "UGC Care Listed"]):
+                if any(k.lower() in idx_val.lower() for k in ["scopus", "web of science", "scie", "abdc", "ugc care listed", "pubmed"]):
                     filtered_rows.append(r)
             elif gallery_filter == "Web of Science / SCIE":
-                if "Web of Science" in idx_val or "SCIE" in idx_val:
+                if "web of science" in idx_val.lower() or "scie" in idx_val.lower():
                     filtered_rows.append(r)
-            elif gallery_filter in idx_val:
+            elif gallery_filter.lower() in idx_val.lower():
                 filtered_rows.append(r)
                 
         if filtered_rows:
@@ -549,23 +571,56 @@ with tab_gallery:
                 with cols[i % 3]:
                     render_publication_achiever_card(author, dept, title, journal, indexing, link_url)
         else:
-            st.info(f"No publications currently logged under '{gallery_filter}'. Use the **Enter Research Data** tab to record your publication!")
+            st.info(f"No publications currently logged under '{gallery_filter}' in the Master Sheet.")
     else:
-        st.info("Showing preview records. Once research entries are submitted, live entries will automatically display here.")
-        sample_cards = [
-            ("Dr. Manoj Kanth", "Management", "Strategic Corporate Governance & Institutional Resilience in Higher Ed", "Journal of Financial Studies", "ABDC", "#"),
-            ("Dr. Srinath Naganathan", "Sciences", "Bioremediation Kinetics and Optimization of Oily Sludge Waste Systems", "Environmental Science & Pollution", "Scopus", "#"),
-            ("Dr. Rajita Anand Singh", "English & Languages", "Narrative Structures and Diasporic Identity in Modern Commonwealth Fiction", "Literary Review Quarterly", "UGC Care Listed", "#")
-        ]
-        cols = st.columns(3)
-        for i, (auth, dept, title, jour, idx_t, lnk) in enumerate(sample_cards):
-            with cols[i % 3]:
-                render_publication_achiever_card(auth, dept, title, jour, idx_t, lnk)
+        st.info("No research database records found in the Master Sheet. Use the 'Enter Research Data' tab to submit your first entry!")
 
-# --- TAB 2: DATA ENTRY WORKSPACE (ORIGINAL ENTRY DESK) ---
+# --- TAB 2: LIVE MASTER DATABASE EXPLORER ---
+with tab_explorer:
+    st.subheader("📋 Master Google Sheet Live Explorer")
+    st.markdown("Extract and inspect records across all sheets in real time.")
+    
+    sheet_choice = st.selectbox("Select Master Sheet Tab to View:", [
+        "🔬 Research_Database", 
+        "🏆 Faculty_Achievements", 
+        "👥 Student_Activities", 
+        "🏛️ Committees_Cells_Clubs"
+    ])
+    
+    target_tab_map = {
+        "🔬 Research_Database": res_df,
+        "🏆 Faculty_Achievements": fac_df,
+        "👥 Student_Activities": stu_df,
+        "🏛️ Committees_Cells_Clubs": comm_df
+    }
+    
+    selected_df = target_tab_map[sheet_choice]
+    
+    if not selected_df.empty:
+        # Search & Filter bar
+        search_query = st.text_input("🔍 Search within this sheet (filter by Faculty Name, Department, or Title):", "").strip().lower()
+        
+        display_df = selected_df.copy()
+        if search_query:
+            display_df = display_df[display_df.apply(lambda row: row.astype(str).str.lower().str.contains(search_query).any(), axis=1)]
+            
+        st.dataframe(display_df, use_container_width=True, height=400)
+        st.caption(f"Showing {len(display_df)} of {len(selected_df)} records extracted directly from Master Sheet ID: `{MASTER_SHEET_ID}`")
+        
+        csv_data = display_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Export Filtered View as CSV",
+            data=csv_data,
+            file_name=f"{sheet_choice.split()[-1]}_extracted.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info(f"The `{sheet_choice}` tab is currently empty or contains no records in the Master Sheet.")
+
+# --- TAB 3: DATA ENTRY WORKSPACE ---
 with tab_submit:
     is_locked = not st.session_state.get("admin_enabled", True)
-    is_admin = st.session_state.get("logged_email") == "research@stmaryscollege.in"
+    is_admin = st.session_state.get("logged_email") in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]
 
     if is_locked and not is_admin:
         st.error("🔒 Data entry is currently disabled by the Administrator.")
@@ -618,7 +673,7 @@ with tab_submit:
                         upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                         
                         if st.form_submit_button("Commit Entry"):
-                            if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                            if not st.session_state.get("admin_enabled", True) and not is_admin:
                                 st.error("Submission rejected: Data entry is currently disabled.")
                             elif not upload: st.error("Verification mandatory!")
                             elif st.session_state.collab_box and not collab_names.strip(): st.error("Collaboration names mandatory!")
@@ -638,7 +693,8 @@ with tab_submit:
                                 drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
                                 new_row = [current_faculty_name, form_focus, r_type, index_type, title, drive_link, date_span, url, org, scope, scope, org, issn, form_month]
                                 append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
-                                st.success("🎉 Research entry submitted successfully!")
+                                st.success("🎉 Research entry written and sorted in Master Sheet successfully!")
+                                st.rerun()
 
                 elif classification == "🏆 Faculty Profiles & Milestones":
                     target_sheet = "Faculty_Achievements"
@@ -656,7 +712,7 @@ with tab_submit:
                         narrative_input = st.text_area("Achievement Narrative*")
                         upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                         if st.form_submit_button("Submit Profile"):
-                            if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                            if not st.session_state.get("admin_enabled", True) and not is_admin:
                                 st.error("Submission rejected: Data entry is currently disabled.")
                             elif not upload or not narrative_input.strip(): st.error("Verification and narrative statement mandatory!")
                             else:
@@ -674,7 +730,8 @@ with tab_submit:
                                 drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
                                 new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_focus, form_month, form_year, subtype, narrative_input.strip(), current_faculty_name, drive_link]
                                 append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
-                                st.success("🎉 Profile submitted!")
+                                st.success("🎉 Profile entry written and sorted in Master Sheet!")
+                                st.rerun()
 
                 elif classification == "👥 Departmental & Student Contributions":
                     target_sheet = "Student_Activities"
@@ -683,7 +740,7 @@ with tab_submit:
                         description = st.text_area("Description*")
                         upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                         if st.form_submit_button("Submit Contribution"):
-                            if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                            if not st.session_state.get("admin_enabled", True) and not is_admin:
                                 st.error("Submission rejected: Data entry is currently disabled.")
                             elif not upload or not description.strip(): st.error("Verification and description mandatory!")
                             else:
@@ -701,7 +758,8 @@ with tab_submit:
                                 drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
                                 new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_focus, form_month, form_year, "Institutional Contribution", description.strip(), current_faculty_name, drive_link]
                                 append_and_sort_sheet_by_department(target_sheet, new_row, 1, creds)
-                                st.success("🎉 Contribution submitted!")
+                                st.success("🎉 Contribution entry written and sorted in Master Sheet!")
+                                st.rerun()
 
         else:
             target_sheet = "Committees_Cells_Clubs"
@@ -713,7 +771,7 @@ with tab_submit:
                 upload = st.file_uploader("Upload Verification Document (Mandatory)*")
                 
                 if st.form_submit_button("Commit Committee Record"):
-                    if not st.session_state.get("admin_enabled", True) and st.session_state.logged_email != "research@stmaryscollege.in":
+                    if not st.session_state.get("admin_enabled", True) and not is_admin:
                         st.error("Submission rejected: Data entry is currently disabled.")
                     elif not upload or not narrative_input.strip(): 
                         st.error("Log Description and verification attachment are strictly mandatory fields!")
@@ -730,8 +788,9 @@ with tab_submit:
                         ]
                         append_and_sort_sheet_by_department(target_sheet, new_row, 0, creds)
                         st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
+                        st.rerun()
 
-# --- TAB 3: MONTHLY GENERATOR ---
+# --- TAB 4: MONTHLY GENERATOR ---
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
@@ -757,7 +816,7 @@ with tab_document:
             st.success(f"🎯 Document synchronized into your Drive repository folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
-# --- TAB 4: ADMIN CONTROL ---
+# --- TAB 5: ADMIN CONTROL ---
 with tab_admin:
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
         st.toggle(
