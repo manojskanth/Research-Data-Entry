@@ -248,7 +248,7 @@ def download_drive_file_bytes(file_id, creds):
         return None
 
 def extract_announcements_from_docx(file_bytes):
-    """Parses Word document (.docx) paragraphs & tables, capturing registration deadlines and clickable links."""
+    """Parses Word document (.docx) paragraphs & tables, structuring metadata cleanly."""
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
@@ -265,7 +265,7 @@ def extract_announcements_from_docx(file_bytes):
             reg_urls = []
             gen_urls = []
             for u in urls:
-                if any(k in text.lower() for k in ["register", "registration", "form", "apply", "ticket", "eventbrite", "forms.gle"]):
+                if any(k in u.lower() or k in text.lower() for k in ["register", "registration", "form", "apply", "ticket", "eventbrite", "forms.gle"]):
                     reg_urls.append(u)
                 else:
                     gen_urls.append(u)
@@ -335,24 +335,45 @@ def extract_announcements_from_docx(file_bytes):
 
         for table in doc.tables:
             for row in table.rows:
-                cells_text = [c.text.strip() for c in row.cells if c.text.strip()]
-                if len(cells_text) >= 2:
-                    t_title = cells_text[0]
-                    t_desc = " | ".join(cells_text[1:])
+                cells = [c.text.strip() for c in row.cells]
+                valid_cells = [c for c in cells if c and c.lower() != "data point not found"]
+                
+                if len(valid_cells) >= 2:
+                    t_title = valid_cells[0]
+                    body_items = []
+                    found_urls = []
+                    t_reg_dl = ""
+                    t_sub_dl = ""
+
+                    for item in valid_cells[1:]:
+                        r_u, g_u, r_d, s_d = parse_text_meta(item)
+                        found_urls.extend(r_u + g_u)
+                        if r_d and not t_reg_dl: t_reg_dl = r_d
+                        if s_d and not t_sub_dl: t_sub_dl = s_d
+                        
+                        cleaned_item = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', item).strip()
+                        if cleaned_item and cleaned_item not in ["|", "-"]:
+                            body_items.append(cleaned_item)
+
                     t_dept = "All Units / Campus Wide"
                     for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
-                        if d.lower() in (t_title + t_desc).lower():
+                        if d.lower() in (t_title + " ".join(body_items)).lower():
                             t_dept = d
                             break
-                    r_urls, g_urls, r_dl, s_dl = parse_text_meta(t_desc)
+
+                    formatted_content = "\n".join([f"• {b}" for b in body_items if b])
+
+                    reg_action_links = [u for u in found_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register"])]
+                    portal_action_links = [u for u in found_urls if u not in reg_action_links]
+
                     entries.append({
                         "title": t_title, 
-                        "content": t_desc, 
+                        "content": formatted_content if formatted_content else "Open for submission and review.", 
                         "dept": t_dept, 
-                        "reg_deadline": r_dl,
-                        "sub_deadline": s_dl,
-                        "reg_links": list(set(r_urls)),
-                        "gen_links": list(set(g_urls))
+                        "reg_deadline": t_reg_dl,
+                        "sub_deadline": t_sub_dl,
+                        "reg_links": list(set(reg_action_links)),
+                        "gen_links": list(set(portal_action_links))
                     })
 
     except Exception:
@@ -642,29 +663,28 @@ def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_parsed_doc_entry(entry):
-    # Distinct Badges for Registration Deadline and Submission Deadline
     badges_html = []
     if entry.get('reg_deadline'):
         badges_html.append(f"""
-        <div style="background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 12px; padding: 5px 10px; border-radius: 6px; margin-right: 8px; margin-bottom: 6px; display: inline-block;">
+        <div style="background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
             🎟️ <b>Registration Deadline:</b> {entry.get('reg_deadline')}
         </div>
         """)
     if entry.get('sub_deadline'):
         badges_html.append(f"""
-        <div style="background-color: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; font-weight: 700; font-size: 12px; padding: 5px 10px; border-radius: 6px; margin-bottom: 6px; display: inline-block;">
+        <div style="background-color: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
             ⏰ <b>Submission Deadline:</b> {entry.get('sub_deadline')}
         </div>
         """)
 
-    # Interactive Clickable URL Buttons
     action_buttons = []
     if entry.get("reg_links"):
         for url in entry.get("reg_links"):
             clean_url = url if url.startswith("http") else f"https://{url}"
+            btn_label = "📖 Author Guidelines / Submission" if "guide" in url.lower() else "🎟️ Register Here (Registration Link)"
             action_buttons.append(f"""
             <a href='{clean_url}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 12px; margin-right: 8px; margin-top: 8px; display: inline-block; box-shadow: 0 2px 6px rgba(225, 29, 72, 0.25);'>
-                🎟️ Register Here (Registration Link)
+                {btn_label}
             </a>
             """)
 
@@ -673,24 +693,26 @@ def render_parsed_doc_entry(entry):
             clean_url = url if url.startswith("http") else f"https://{url}"
             action_buttons.append(f"""
             <a href='{clean_url}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 8px; display: inline-block;'>
-                🔗 Conference / Portal URL
+                🌐 Official Journal / Portal
             </a>
             """)
 
-    rendered_badges = f"<div style='margin-bottom: 8px;'>{''.join(badges_html)}</div>" if badges_html else ""
-    rendered_buttons = f"<div style='margin-top: 12px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
+    rendered_badges = f"<div style='margin-bottom: 6px;'>{''.join(badges_html)}</div>" if badges_html else ""
+    rendered_buttons = f"<div style='margin-top: 10px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
 
     card_html = f"""
     <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="background-color: #4338CA; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">
-                CALL FOR PAPERS / CONFERENCE
+            <span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">
+                CALL FOR PAPERS / JOURNAL
             </span>
             <span style="color: #64748B; font-size: 11px; font-weight: 600;">{entry.get('dept')}</span>
         </div>
-        <h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700; line-height: 1.4;">{entry.get('title')}</h4>
+        <h4 style="margin: 0 0 6px 0; color: #1E293B; font-size: 14px; font-weight: 700; line-height: 1.4;">{entry.get('title')}</h4>
         {rendered_badges}
-        <p style="margin: 0; color: #475569; font-size: 13px; white-space: pre-line; line-height: 1.5;">{entry.get('content')}</p>
+        <div style="color: #475569; font-size: 12.5px; line-height: 1.6; background-color: #F8FAFC; padding: 8px 12px; border-radius: 6px; border: 1px solid #F1F5F9; white-space: pre-line;">
+            {entry.get('content')}
+        </div>
         {rendered_buttons}
     </div>
     """
@@ -775,7 +797,7 @@ with tab_gallery:
     valid_publications = []
     if not res_df.empty and len(res_df) > 0:
         for _, r in res_df.iterrows():
-            pub_type = str(r.iloc[2]).strip() if len(r) > 2 else ""
+            pub_type = str(r.iloc[2]).strip() if len(row := r) > 2 else ""
             indexing = str(r.iloc[3]).strip() if len(r) > 3 else ""
             is_full_book = "full book" in pub_type.lower()
             is_valid_index = indexing.upper() not in ["NA", "N/A", "NONE", ""] and indexing.strip() != ""
