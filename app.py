@@ -230,7 +230,6 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
         st.error(f"Sorting Error: {str(e)}")
 
 def fetch_sheet_records(sheet_name, creds):
-    """Extracts raw records from Google Sheet tab into a formatted Pandas DataFrame."""
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
         res = sheets_service.spreadsheets().values().get(
@@ -241,12 +240,11 @@ def fetch_sheet_records(sheet_name, creds):
         if not rows or len(rows) < 2:
             return pd.DataFrame()
         
-        # Determine maximum column width to prevent jagged row errors
         headers = rows[0]
         max_cols = len(headers)
         data = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows[1:]]
         return pd.DataFrame(data, columns=headers)
-    except Exception as e:
+    except Exception:
         return pd.DataFrame()
 
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
@@ -407,21 +405,26 @@ def render_scrolling_ticker(announcements):
 
 def render_publication_achiever_card(author, dept, title, journal, indexing, link_url):
     badge_colors = {
+        "📖 FULL BOOK": "#B8860B",
         "Scopus": "#E65100",
         "Web of Science": "#0D47A1",
         "SCIE": "#1B5E20",
         "ABDC": "#4A148C",
         "UGC Care Listed": "#B71C1C",
-        "PubMed": "#006064"
+        "PubMed": "#006064",
+        "Peer Reviewed": "#374151"
     }
-    badge_bg = badge_colors.get(indexing, "#374151")
-    link_html = f"<a href='{link_url}' target='_blank' style='color:#1A237E; font-weight:600; text-decoration:none;'>🔗 View Paper / Document</a>" if link_url and link_url != "Pending Folder Permissions Link" and link_url != "NA" else ""
+    badge_bg = badge_colors.get(indexing, "#1A237E")
+    is_book = indexing == "📖 FULL BOOK"
+    border_style = "2px solid #D4AF37" if is_book else "1px solid #E2E8F0"
+    
+    link_html = f"<a href='{link_url}' target='_blank' style='color:#1A237E; font-weight:600; text-decoration:none;'>🔗 View Document / Link</a>" if link_url and link_url not in ["Pending Folder Permissions Link", "NA", ""] else ""
 
     card_html = f"""
-    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; margin-bottom: 20px; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border: {border_style}; margin-bottom: 20px; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
         <div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <span style="background-color:{badge_bg}; color:white; font-size:11px; font-weight:700; padding:3px 8px; border-radius:4px; text-transform:uppercase;">
+                <span style="background-color:{badge_bg}; color:white; font-size:11px; font-weight:700; padding:4px 8px; border-radius:4px; text-transform:uppercase;">
                     {indexing}
                 </span>
                 <span style="color:#64748B; font-size:12px; font-weight:500;">{dept}</span>
@@ -501,31 +504,66 @@ tab_gallery, tab_explorer, tab_submit, tab_document, tab_admin = st.tabs([
 
 # --- TAB 1: RESEARCH PORTAL HOME ---
 with tab_gallery:
-    # 1. Scrolling News Ticker
+    # 1. Ranking Function (Lower number = Higher ranking)
+    def get_impact_rank(row):
+        pub_type = str(row.iloc[2]).strip().lower() if len(row) > 2 else ""
+        indexing = str(row.iloc[3]).strip().lower() if len(row) > 3 else ""
+        
+        if "full book" in pub_type:
+            return 1
+        elif any(k in indexing for k in ["scopus", "web of science", "scie"]):
+            return 2
+        elif any(k in indexing for k in ["abdc", "pubmed", "doaj", "embase"]):
+            return 3
+        elif "ugc care" in indexing:
+            return 4
+        elif "book chapter" in pub_type or "proceeding" in indexing:
+            return 5
+        elif "peer reviewed" in indexing:
+            return 6
+        return 99
+
+    # 2. Filter out 'NA', empty, or unindexed records
+    valid_publications = []
     if not res_df.empty and len(res_df) > 0:
+        for _, r in res_df.iterrows():
+            pub_type = str(r.iloc[2]).strip() if len(r) > 2 else ""
+            indexing = str(r.iloc[3]).strip() if len(r) > 3 else ""
+            
+            is_full_book = "full book" in pub_type.lower()
+            is_valid_index = indexing.upper() not in ["NA", "N/A", "NONE", ""] and indexing.strip() != ""
+            
+            if is_full_book or is_valid_index:
+                valid_publications.append(r)
+
+    # 3. Dynamic News Ticker (Excluding 'NA' entries)
+    if valid_publications:
         ticker_items = []
-        for _, row in res_df.tail(8).iterrows():
+        for row in valid_publications[:10]:
             f_auth = row.iloc[0] if len(row) > 0 else "Faculty"
-            f_title = row.iloc[4] if len(row) > 4 else "Research Paper"
+            f_type = row.iloc[2] if len(row) > 2 else "Publication"
             f_idx = row.iloc[3] if len(row) > 3 else "Indexed"
-            f_jour = row.iloc[8] if len(row) > 8 else "Journal"
-            ticker_items.append(f"{f_auth} ({f_idx}): '{f_title}' in {f_jour}")
+            f_title = row.iloc[4] if len(row) > 4 else "Research Work"
+            f_jour = row.iloc[8] if len(row) > 8 else "Publisher"
+            
+            tag = "🌟 FULL BOOK" if "full book" in f_type.lower() else f"[{f_idx}]"
+            ticker_items.append(f"{f_auth} {tag}: '{f_title}' ({f_jour})")
         render_scrolling_ticker(ticker_items)
     else:
         render_scrolling_ticker([
-            "Dr. Srinath Naganathan published in Scopus Indexed Journal",
-            "Dr. Rajita Anand Singh presented research paper at International Colloquium",
-            "Department of Sciences logs new indexed publication records"
+            "Dr. Srinath Naganathan [Scopus]: 'Bioremediation Kinetics' in Environmental Science",
+            "Dr. Manoj Kanth [ABDC]: 'Strategic Corporate Governance' in Journal of Financial Studies",
+            "Dr. Rajita Anand Singh [UGC Care Listed]: 'Modern Commonwealth Fiction'"
         ])
 
-    # 2. Executive Analytics Snapshot
+    # 4. Metric Snapshot Counters
     total_research = len(res_df) if not res_df.empty else 0
     total_fac = len(fac_df) if not fac_df.empty else 0
     total_stu = len(stu_df) if not stu_df.empty else 0
     total_comm = len(comm_df) if not comm_df.empty else 0
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("🔬 Research Entries", total_research)
+    m1.metric("🔬 Total Research Logged", total_research)
     m2.metric("🏆 Faculty Milestones", total_fac)
     m3.metric("👥 Department Initiatives", total_stu)
     m4.metric("🏛️ Committee Activities", total_comm)
@@ -534,46 +572,30 @@ with tab_gallery:
     st.markdown("""
     <div style="background-color:#F8FAFC; border-left: 5px solid #1A237E; padding:18px 22px; border-radius:6px; margin-bottom:20px;">
         <h3 style="margin:0 0 6px 0; color:#1A237E;">🏆 Faculty Research Achievers Gallery</h3>
-        <p style="margin:0; color:#475569; font-size:14px;">Extracted directly from the Master Sheet. Showcasing publications in <b>Scopus, Web of Science, ABDC, SCIE, and UGC-CARE</b>.</p>
+        <p style="margin:0; color:#475569; font-size:14px;">Ranked in order of impact: <b>Authored Books, Scopus, Web of Science / SCIE, ABDC, and UGC-CARE</b> publications.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. Filterable Achievers Gallery
-    gallery_filter = st.radio(
-        "Filter by Indexation Database:", 
-        ["All High-Impact", "Scopus", "Web of Science / SCIE", "ABDC", "UGC Care Listed"], 
-        horizontal=True
-    )
+    # 5. Render Ranked Cards Grid
+    if valid_publications:
+        valid_publications.sort(key=get_impact_rank)
+        
+        cols = st.columns(3)
+        for i, row in enumerate(valid_publications):
+            author = row.iloc[0] if len(row) > 0 else "Faculty Member"
+            dept = row.iloc[1] if len(row) > 1 else "Department"
+            pub_type = row.iloc[2] if len(row) > 2 else "Publication"
+            indexing = row.iloc[3] if len(row) > 3 else "Peer Reviewed"
+            title = row.iloc[4] if len(row) > 4 else "Research Publication"
+            link_url = row.iloc[5] if len(row) > 5 else ""
+            journal = row.iloc[8] if len(row) > 8 else "Publisher"
+            
+            display_badge = "📖 FULL BOOK" if "full book" in pub_type.lower() else indexing
 
-    if not res_df.empty and len(res_df) > 0:
-        filtered_rows = []
-        for _, r in res_df.iterrows():
-            idx_val = str(r.iloc[3]).strip() if len(r) > 3 else ""
-            if gallery_filter == "All High-Impact":
-                if any(k.lower() in idx_val.lower() for k in ["scopus", "web of science", "scie", "abdc", "ugc care listed", "pubmed"]):
-                    filtered_rows.append(r)
-            elif gallery_filter == "Web of Science / SCIE":
-                if "web of science" in idx_val.lower() or "scie" in idx_val.lower():
-                    filtered_rows.append(r)
-            elif gallery_filter.lower() in idx_val.lower():
-                filtered_rows.append(r)
-                
-        if filtered_rows:
-            cols = st.columns(3)
-            for i, row in enumerate(filtered_rows):
-                author = row.iloc[0] if len(row) > 0 else "Faculty Member"
-                dept = row.iloc[1] if len(row) > 1 else "Department"
-                indexing = row.iloc[3] if len(row) > 3 else "Peer Reviewed"
-                title = row.iloc[4] if len(row) > 4 else "Research Publication"
-                link_url = row.iloc[5] if len(row) > 5 else ""
-                journal = row.iloc[8] if len(row) > 8 else "Academic Journal"
-                
-                with cols[i % 3]:
-                    render_publication_achiever_card(author, dept, title, journal, indexing, link_url)
-        else:
-            st.info(f"No publications currently logged under '{gallery_filter}' in the Master Sheet.")
+            with cols[i % 3]:
+                render_publication_achiever_card(author, dept, title, journal, display_badge, link_url)
     else:
-        st.info("No research database records found in the Master Sheet. Use the 'Enter Research Data' tab to submit your first entry!")
+        st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
 
 # --- TAB 2: LIVE MASTER DATABASE EXPLORER ---
 with tab_explorer:
@@ -597,7 +619,6 @@ with tab_explorer:
     selected_df = target_tab_map[sheet_choice]
     
     if not selected_df.empty:
-        # Search & Filter bar
         search_query = st.text_input("🔍 Search within this sheet (filter by Faculty Name, Department, or Title):", "").strip().lower()
         
         display_df = selected_df.copy()
@@ -605,7 +626,7 @@ with tab_explorer:
             display_df = display_df[display_df.apply(lambda row: row.astype(str).str.lower().str.contains(search_query).any(), axis=1)]
             
         st.dataframe(display_df, use_container_width=True, height=400)
-        st.caption(f"Showing {len(display_df)} of {len(selected_df)} records extracted directly from Master Sheet ID: `{MASTER_SHEET_ID}`")
+        st.caption(f"Showing {len(display_df)} of {len(selected_df)} records")
         
         csv_data = display_df.to_csv(index=False).encode('utf-8')
         st.download_button(
