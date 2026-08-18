@@ -255,6 +255,7 @@ def extract_announcements_from_docx(file_bytes):
         current_title = ""
         current_lines = []
         current_dept = "All Units / Campus Wide"
+        current_category = "CALL FOR PAPERS / JOURNAL"
         current_reg_deadline = ""
         current_sub_deadline = ""
         current_reg_links = []
@@ -265,7 +266,7 @@ def extract_announcements_from_docx(file_bytes):
             reg_urls = []
             gen_urls = []
             for u in urls:
-                if any(k in u.lower() or k in text.lower() for k in ["register", "registration", "form", "apply", "ticket", "eventbrite", "forms.gle"]):
+                if any(k in u.lower() or k in text.lower() for k in ["register", "registration", "form", "apply", "ticket", "eventbrite", "forms.gle", "guide", "author", "submit"]):
                     reg_urls.append(u)
                 else:
                     gen_urls.append(u)
@@ -285,11 +286,13 @@ def extract_announcements_from_docx(file_bytes):
 
             return reg_urls, gen_urls, reg_deadline, sub_deadline
 
+        # 1. Parse Paragraphs
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt:
                 continue
 
+            # Detect department tag
             dept_match = re.search(r'\[(.*?)\]|Department of\s+([A-Za-z &]+)', txt, re.IGNORECASE)
             if dept_match:
                 detected = dept_match.group(1) or dept_match.group(2)
@@ -297,6 +300,10 @@ def extract_announcements_from_docx(file_bytes):
                     if d.lower() in detected.lower():
                         current_dept = d
                         break
+
+            # Update category banner if encountered
+            if any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "conference"]):
+                current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt[:40].upper()
 
             r_urls, g_urls, r_dl, s_dl = parse_text_meta(txt)
             if r_urls: current_reg_links.extend(r_urls)
@@ -310,6 +317,7 @@ def extract_announcements_from_docx(file_bytes):
                         "title": current_title,
                         "content": "\n".join(current_lines),
                         "dept": current_dept,
+                        "category": current_category,
                         "reg_deadline": current_reg_deadline,
                         "sub_deadline": current_sub_deadline,
                         "reg_links": list(set(current_reg_links)),
@@ -320,23 +328,27 @@ def extract_announcements_from_docx(file_bytes):
             else:
                 if not current_title:
                     current_title = txt[:60] + "..." if len(txt) > 60 else txt
-                current_lines.append(txt)
+                cleaned_line = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', txt).strip()
+                if cleaned_line:
+                    current_lines.append(cleaned_line)
 
         if current_title and current_lines:
             entries.append({
                 "title": current_title,
                 "content": "\n".join(current_lines),
                 "dept": current_dept,
+                "category": current_category,
                 "reg_deadline": current_reg_deadline,
                 "sub_deadline": current_sub_deadline,
                 "reg_links": list(set(current_reg_links)),
                 "gen_links": list(set(current_general_links))
             })
 
+        # 2. Parse Tables
         for table in doc.tables:
             for row in table.rows:
                 cells = [c.text.strip() for c in row.cells]
-                valid_cells = [c for c in cells if c and c.lower() != "data point not found"]
+                valid_cells = [c for c in cells if c and c.lower() not in ["data point not found", "n/a", "na", "-", "|"]]
                 
                 if len(valid_cells) >= 2:
                     t_title = valid_cells[0]
@@ -352,24 +364,25 @@ def extract_announcements_from_docx(file_bytes):
                         if s_d and not t_sub_dl: t_sub_dl = s_d
                         
                         cleaned_item = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', item).strip()
-                        if cleaned_item and cleaned_item not in ["|", "-"]:
+                        if cleaned_item and cleaned_item not in ["|", "-", "•"]:
                             body_items.append(cleaned_item)
 
-                    t_dept = "All Units / Campus Wide"
+                    t_dept = current_dept
                     for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
-                        if d.lower() in (t_title + " ".join(body_items)).lower():
+                        if d.lower() in (t_title + " " + " ".join(body_items)).lower():
                             t_dept = d
                             break
 
                     formatted_content = "\n".join([f"• {b}" for b in body_items if b])
 
-                    reg_action_links = [u for u in found_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register"])]
+                    reg_action_links = [u for u in found_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register", "forms.gle"])]
                     portal_action_links = [u for u in found_urls if u not in reg_action_links]
 
                     entries.append({
                         "title": t_title, 
                         "content": formatted_content if formatted_content else "Open for submission and review.", 
                         "dept": t_dept, 
+                        "category": current_category,
                         "reg_deadline": t_reg_dl,
                         "sub_deadline": t_sub_dl,
                         "reg_links": list(set(reg_action_links)),
@@ -663,6 +676,8 @@ def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_parsed_doc_entry(entry):
+    category_label = entry.get('category', 'CALL FOR PAPERS / JOURNAL')
+    
     badges_html = []
     if entry.get('reg_deadline'):
         badges_html.append(f"""
@@ -703,8 +718,8 @@ def render_parsed_doc_entry(entry):
     card_html = f"""
     <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">
-                CALL FOR PAPERS / JOURNAL
+            <span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;">
+                {category_label}
             </span>
             <span style="color: #64748B; font-size: 11px; font-weight: 600;">{entry.get('dept')}</span>
         </div>
@@ -797,7 +812,7 @@ with tab_gallery:
     valid_publications = []
     if not res_df.empty and len(res_df) > 0:
         for _, r in res_df.iterrows():
-            pub_type = str(r.iloc[2]).strip() if len(row := r) > 2 else ""
+            pub_type = str(r.iloc[2]).strip() if len(r) > 2 else ""
             indexing = str(r.iloc[3]).strip() if len(r) > 3 else ""
             is_full_book = "full book" in pub_type.lower()
             is_valid_index = indexing.upper() not in ["NA", "N/A", "NONE", ""] and indexing.strip() != ""
