@@ -2,17 +2,23 @@ import streamlit as st
 import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 import io
 import json
 import base64
 import os
+import re
 import pandas as pd
 from docx import Document
 from docx.shared import Pt
 
 # --- 1. CORE SYSTEM CONFIGURATION ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
+
+# Dedicated Drive Folder Repositories
+RESEARCH_EVENTS_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS"  # Conferences, Word Dossiers, CFP Posters
+CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS" # Departmental & Student Activities
+COMMITTEE_FOLDER_ID = "1pzrbGsViKtzsQYBPt-p9ZqQ5WXbzdHcW"
 
 DEPARTMENTS = [
     "English & Languages", 
@@ -34,8 +40,6 @@ ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-3
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 DEPT_SORT_ORDER = {dept: index for index, dept in enumerate(DEPARTMENTS)}
-
-COMMITTEE_FOLDER_ID = "1pzrbGsViKtzsQYBPt-p9ZqQ5WXbzdHcW"
 
 DEPARTMENT_FOLDERS = {
     "Commerce": "1HMBoNkhksNpaitlBaGfq3JeoHsb_jmo-",
@@ -187,7 +191,7 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
         for p_id in parent_ids:
             file_metadata = {'name': file_name, 'parents': [p_id]}
             media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=True)
-            uploaded = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
+            uploaded = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink, webContentLink', supportsAllDrives=True).execute()
             try:
                 drive_service.permissions().create(fileId=uploaded.get('id'), body={'type': 'anyone', 'role': 'reader'}, supportsAllDrives=True).execute()
             except:
@@ -197,6 +201,105 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
     except Exception as e:
         st.warning(f"⚠️ Drive Sync Notification: Written cleanly to spreadsheet layout.")
         return "Pending Folder Permissions Link"
+
+def fetch_drive_folder_items(folder_id, creds):
+    try:
+        drive_service = build('drive', 'v3', credentials=creds)
+        query = f"'{folder_id}' in parents and trashed = false"
+        results = drive_service.files().list(
+            q=query, 
+            fields="files(id, name, mimeType, webViewLink, webContentLink, createdTime, description)",
+            supportsAllDrives=True, 
+            includeItemsFromAllDrives=True
+        ).execute()
+        return results.get('files', [])
+    except Exception as e:
+        return []
+
+def download_drive_file_bytes(file_id, creds):
+    try:
+        drive_service = build('drive', 'v3', credentials=creds)
+        request = drive_service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        return fh.getvalue()
+    except Exception:
+        return None
+
+def extract_announcements_from_docx(file_bytes):
+    """Parses Word document (.docx) paragraphs & tables for call for papers and department tags."""
+    entries = []
+    try:
+        doc = Document(io.BytesIO(file_bytes))
+        current_title = ""
+        current_lines = []
+        current_dept = "All Units / Campus Wide"
+
+        # Check paragraphs
+        for p in doc.paragraphs:
+            txt = p.text.strip()
+            if not txt:
+                continue
+
+            # Detect department tag format e.g., [Commerce] or Department of Management
+            dept_match = re.search(r'\[(.*?)\]|Department of\s+([A-Za-z &]+)', txt, re.IGNORECASE)
+            if dept_match:
+                detected = dept_match.group(1) or dept_match.group(2)
+                for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
+                    if d.lower() in detected.lower():
+                        current_dept = d
+                        break
+
+            # Bold text or Headings treated as entry title
+            if p.style.name.startswith('Heading') or (p.runs and p.runs[0].bold and len(txt) < 120):
+                if current_title and current_lines:
+                    entries.append({
+                        "title": current_title,
+                        "content": "\n".join(current_lines),
+                        "dept": current_dept
+                    })
+                    current_lines = []
+                current_title = txt
+            else:
+                if not current_title:
+                    current_title = txt[:60] + "..." if len(txt) > 60 else txt
+                current_lines.append(txt)
+
+        if current_title and current_lines:
+            entries.append({
+                "title": current_title,
+                "content": "\n".join(current_lines),
+                "dept": current_dept
+            })
+
+        # Check tables inside docx
+        for table in doc.tables:
+            for row in table.rows:
+                cells_text = [c.text.strip() for c in row.cells if c.text.strip()]
+                if len(cells_text) >= 2:
+                    t_title = cells_text[0]
+                    t_desc = " | ".join(cells_text[1:])
+                    t_dept = "All Units / Campus Wide"
+                    for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
+                        if d.lower() in (t_title + t_desc).lower():
+                            t_dept = d
+                            break
+                    entries.append({"title": t_title, "content": t_desc, "dept": t_dept})
+
+    except Exception:
+        pass
+    return entries
+
+def delete_drive_file(file_id, creds):
+    try:
+        drive_service = build('drive', 'v3', credentials=creds)
+        drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
+        return True
+    except Exception:
+        return False
 
 def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, creds):
     try:
@@ -391,7 +494,7 @@ def styled_block(format_text, example_text):
 """.strip()
     st.markdown(html_string, unsafe_allow_html=True)
 
-# --- 4. WEBSITE FRONT-PAGE COMPONENTS ---
+# --- 4. WEBSITE FRONT-PAGE & ANNOUNCEMENT CARDS ---
 def render_scrolling_ticker(announcements):
     ticker_text = " &nbsp;&nbsp;&nbsp; 🌟 &nbsp;&nbsp;&nbsp; ".join(announcements)
     ticker_html = f"""
@@ -436,6 +539,45 @@ def render_publication_achiever_card(author, dept, title, journal, indexing, lin
         <div style="padding-top:8px; border-top:1px solid #F1F5F9; font-size:12px;">
             {link_html}
         </div>
+    </div>
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
+
+def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
+    file_name = file_obj.get("name", "Announcement Flyer")
+    view_link = file_obj.get("webViewLink", "#")
+    mime = file_obj.get("mimeType", "")
+    icon = "🖼️" if "image" in mime else ("📝" if "document" in mime or file_name.endswith(".docx") else "📄")
+
+    card_html = f"""
+    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 16px; box-shadow: 0 3px 10px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <span style="background-color: {bg_color}; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">
+                {category_label}
+            </span>
+            <span style="font-size: 16px;">{icon}</span>
+        </div>
+        <h4 style="margin: 0 0 10px 0; color: #1E293B; font-size: 14px; line-height: 1.4; word-break: break-word;">{file_name}</h4>
+        <div style="margin-top: 10px; font-size: 12px;">
+            <a href="{view_link}" target="_blank" style="background-color: #EEF2FF; color: #1A237E; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
+                🔍 Open Document / Flyer
+            </a>
+        </div>
+    </div>
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
+
+def render_parsed_doc_entry(entry):
+    card_html = f"""
+    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 16px; box-shadow: 0 3px 10px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="background-color: #4338CA; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">
+                CALL FOR PAPERS / CONFERENCE
+            </span>
+            <span style="color: #64748B; font-size: 11px; font-weight: 600;">{entry.get('dept')}</span>
+        </div>
+        <h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700;">{entry.get('title')}</h4>
+        <p style="margin: 0; color: #475569; font-size: 13px; white-space: pre-line; line-height: 1.5;">{entry.get('content')}</p>
     </div>
     """
     st.markdown(card_html, unsafe_allow_html=True)
@@ -494,8 +636,9 @@ stu_df = fetch_sheet_records("Student_Activities", creds)
 comm_df = fetch_sheet_records("Committees_Cells_Clubs", creds)
 
 # --- TAB NAVIGATION ---
-tab_gallery, tab_explorer, tab_submit, tab_document, tab_admin = st.tabs([
-    "🌐 Research Portal Home", 
+tab_gallery, tab_announcements, tab_explorer, tab_submit, tab_document, tab_admin = st.tabs([
+    "🌐 Research Portal Home",
+    "📢 Live Announcements & Events",
     "📋 Master Database Explorer",
     "📝 Enter Research Data", 
     "📊 Monthly Achievement Generator", 
@@ -504,39 +647,27 @@ tab_gallery, tab_explorer, tab_submit, tab_document, tab_admin = st.tabs([
 
 # --- TAB 1: RESEARCH PORTAL HOME ---
 with tab_gallery:
-    # 1. Ranking Function (Lower number = Higher ranking)
     def get_impact_rank(row):
         pub_type = str(row.iloc[2]).strip().lower() if len(row) > 2 else ""
         indexing = str(row.iloc[3]).strip().lower() if len(row) > 3 else ""
-        
-        if "full book" in pub_type:
-            return 1
-        elif any(k in indexing for k in ["scopus", "web of science", "scie"]):
-            return 2
-        elif any(k in indexing for k in ["abdc", "pubmed", "doaj", "embase"]):
-            return 3
-        elif "ugc care" in indexing:
-            return 4
-        elif "book chapter" in pub_type or "proceeding" in indexing:
-            return 5
-        elif "peer reviewed" in indexing:
-            return 6
+        if "full book" in pub_type: return 1
+        elif any(k in indexing for k in ["scopus", "web of science", "scie"]): return 2
+        elif any(k in indexing for k in ["abdc", "pubmed", "doaj", "embase"]): return 3
+        elif "ugc care" in indexing: return 4
+        elif "book chapter" in pub_type or "proceeding" in indexing: return 5
+        elif "peer reviewed" in indexing: return 6
         return 99
 
-    # 2. Filter out 'NA', empty, or unindexed records
     valid_publications = []
     if not res_df.empty and len(res_df) > 0:
         for _, r in res_df.iterrows():
             pub_type = str(r.iloc[2]).strip() if len(r) > 2 else ""
             indexing = str(r.iloc[3]).strip() if len(r) > 3 else ""
-            
             is_full_book = "full book" in pub_type.lower()
             is_valid_index = indexing.upper() not in ["NA", "N/A", "NONE", ""] and indexing.strip() != ""
-            
             if is_full_book or is_valid_index:
                 valid_publications.append(r)
 
-    # 3. Dynamic News Ticker (Excluding 'NA' entries)
     if valid_publications:
         ticker_items = []
         for row in valid_publications[:10]:
@@ -545,7 +676,6 @@ with tab_gallery:
             f_idx = row.iloc[3] if len(row) > 3 else "Indexed"
             f_title = row.iloc[4] if len(row) > 4 else "Research Work"
             f_jour = row.iloc[8] if len(row) > 8 else "Publisher"
-            
             tag = "🌟 FULL BOOK" if "full book" in f_type.lower() else f"[{f_idx}]"
             ticker_items.append(f"{f_auth} {tag}: '{f_title}' ({f_jour})")
         render_scrolling_ticker(ticker_items)
@@ -556,17 +686,11 @@ with tab_gallery:
             "Dr. Rajita Anand Singh [UGC Care Listed]: 'Modern Commonwealth Fiction'"
         ])
 
-    # 4. Metric Snapshot Counters
-    total_research = len(res_df) if not res_df.empty else 0
-    total_fac = len(fac_df) if not fac_df.empty else 0
-    total_stu = len(stu_df) if not stu_df.empty else 0
-    total_comm = len(comm_df) if not comm_df.empty else 0
-
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("🔬 Total Research Logged", total_research)
-    m2.metric("🏆 Faculty Milestones", total_fac)
-    m3.metric("👥 Department Initiatives", total_stu)
-    m4.metric("🏛️ Committee Activities", total_comm)
+    m1.metric("🔬 Total Research Logged", len(res_df) if not res_df.empty else 0)
+    m2.metric("🏆 Faculty Milestones", len(fac_df) if not fac_df.empty else 0)
+    m3.metric("👥 Department Initiatives", len(stu_df) if not stu_df.empty else 0)
+    m4.metric("🏛️ Committee Activities", len(comm_df) if not comm_df.empty else 0)
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
@@ -576,10 +700,8 @@ with tab_gallery:
     </div>
     """, unsafe_allow_html=True)
 
-    # 5. Render Ranked Cards Grid
     if valid_publications:
         valid_publications.sort(key=get_impact_rank)
-        
         cols = st.columns(3)
         for i, row in enumerate(valid_publications):
             author = row.iloc[0] if len(row) > 0 else "Faculty Member"
@@ -589,15 +711,118 @@ with tab_gallery:
             title = row.iloc[4] if len(row) > 4 else "Research Publication"
             link_url = row.iloc[5] if len(row) > 5 else ""
             journal = row.iloc[8] if len(row) > 8 else "Publisher"
-            
             display_badge = "📖 FULL BOOK" if "full book" in pub_type.lower() else indexing
-
             with cols[i % 3]:
                 render_publication_achiever_card(author, dept, title, journal, display_badge, link_url)
     else:
         st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
 
-# --- TAB 2: LIVE MASTER DATABASE EXPLORER ---
+# --- TAB 2: LIVE ANNOUNCEMENTS & EVENTS (TWO-COLUMN BULLETIN WITH WORD DOC EXTRACTOR) ---
+with tab_announcements:
+    st.subheader("📢 Campus Bulletin & Upcoming Opportunities")
+    st.markdown("Live repository of posters, call for papers, upcoming conferences, and departmental activities.")
+
+    filter_options = ["All Units / Campus Wide"] + DEPARTMENTS + COMMITTEES_CELLS_CLUBS
+    selected_unit = st.selectbox("🎯 Filter Events by Department / Club / Committee:", filter_options)
+
+    # Fetch Files from Drive Folders
+    with st.spinner("Accessing Google Drive folders and reading announcements..."):
+        research_files = fetch_drive_folder_items(RESEARCH_EVENTS_FOLDER_ID, creds)
+        campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
+
+    # Check for Word Docs (.docx) to extract text directly
+    parsed_docx_entries = []
+    regular_research_files = []
+
+    for f in research_files:
+        name = f.get("name", "")
+        if name.endswith(".docx") or "officedocument.wordprocessingml.document" in f.get("mimeType", ""):
+            b_data = download_drive_file_bytes(f.get("id"), creds)
+            if b_data:
+                extracted = extract_announcements_from_docx(b_data)
+                parsed_docx_entries.extend(extracted)
+        else:
+            regular_research_files.append(f)
+
+    # Two-Column Layout
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        st.markdown("""
+        <div style="background-color: #EEF2FF; border-left: 4px solid #1A237E; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;">
+            <h4 style="margin: 0; color: #1A237E;">🔬 Upcoming Conferences & Call for Papers</h4>
+            <p style="margin: 0; color: #475569; font-size: 12px;">Extracted from Word dossiers, Scopus conferences, symposiums & grant circulars.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 1. Render extracted entries from Word docs
+        if parsed_docx_entries:
+            matching_docx_entries = [
+                e for e in parsed_docx_entries 
+                if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in e["dept"].lower() or selected_unit.lower() in (e["title"] + e["content"]).lower()
+            ]
+            for entry in matching_docx_entries:
+                render_parsed_doc_entry(entry)
+
+        # 2. Render standard flyer & PDF cards
+        if regular_research_files:
+            filtered_research = [
+                f for f in regular_research_files 
+                if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in f.get("name", "").lower()
+            ]
+            for f in filtered_research:
+                render_bulletin_card(f, "Research Poster / CFP", bg_color="#1A237E")
+
+        if not parsed_docx_entries and not regular_research_files:
+            st.info("No active conference circulars or Call-for-Paper documents found.")
+
+    with col_right:
+        st.markdown("""
+        <div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;">
+            <h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4>
+            <p style="margin: 0; color: #475569; font-size: 12px;">Workshops, guest lectures, club competitions, and sports events.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if campus_files:
+            filtered_campus = [
+                f for f in campus_files 
+                if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in f.get("name", "").lower()
+            ]
+            if filtered_campus:
+                for f in filtered_campus:
+                    render_bulletin_card(f, "Department / Club Event", bg_color="#16A34A")
+            else:
+                st.info(f"No student/department activities specifically tagged for '{selected_unit}'.")
+        else:
+            st.info("No departmental or student activity flyers currently in the vault.")
+
+    # Admin Control Panel for Overriding/Deleting Outdated Event Flyers & Word Dossiers
+    if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
+        with st.expander("🛠️ Manage Announcements (Delete / Override Expired Dossiers & Flyers)"):
+            all_announcements = research_files + campus_files
+            if all_announcements:
+                file_map = {f"{f.get('name')} (ID: {f.get('id')})": f.get('id') for f in all_announcements}
+                selected_del = st.selectbox("Select Expired Document/Flyer to Delete from Drive:", list(file_map.keys()))
+                if st.button("🗑️ Delete Selected Document from Drive", type="secondary"):
+                    if delete_drive_file(file_map[selected_del], creds):
+                        st.success("✅ Expired document deleted from Drive successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to delete file from Drive.")
+            
+            st.markdown("---")
+            st.markdown("**📤 Upload New Announcements Document (Word .docx / Image / PDF):**")
+            u_target = st.radio("Target Folder:", ["🔬 Research Conferences Vault", "🎭 Campus Activities Vault"], horizontal=True)
+            u_file = st.file_uploader("Select Announcement File:", type=["docx", "png", "jpg", "jpeg", "pdf"], key="bulletin_upload")
+            if st.button("Publish File to Live Bulletin"):
+                if u_file:
+                    target_id = RESEARCH_EVENTS_FOLDER_ID if "Research" in u_target else CAMPUS_ACTIVITIES_FOLDER_ID
+                    upload_file_to_drive(u_file.read(), u_file.name, u_file.type, [target_id], creds)
+                    st.success("🎉 File uploaded to Drive and published to the live bulletin!")
+                    st.rerun()
+
+# --- TAB 3: LIVE MASTER DATABASE EXPLORER ---
 with tab_explorer:
     st.subheader("📋 Master Google Sheet Live Explorer")
     st.markdown("Extract and inspect records across all sheets in real time.")
@@ -615,12 +840,10 @@ with tab_explorer:
         "👥 Student_Activities": stu_df,
         "🏛️ Committees_Cells_Clubs": comm_df
     }
-    
     selected_df = target_tab_map[sheet_choice]
     
     if not selected_df.empty:
         search_query = st.text_input("🔍 Search within this sheet (filter by Faculty Name, Department, or Title):", "").strip().lower()
-        
         display_df = selected_df.copy()
         if search_query:
             display_df = display_df[display_df.apply(lambda row: row.astype(str).str.lower().str.contains(search_query).any(), axis=1)]
@@ -638,7 +861,7 @@ with tab_explorer:
     else:
         st.info(f"The `{sheet_choice}` tab is currently empty or contains no records in the Master Sheet.")
 
-# --- TAB 3: DATA ENTRY WORKSPACE ---
+# --- TAB 4: DATA ENTRY WORKSPACE ---
 with tab_submit:
     is_locked = not st.session_state.get("admin_enabled", True)
     is_admin = st.session_state.get("logged_email") in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]
@@ -649,17 +872,14 @@ with tab_submit:
         st.subheader("Add Monthly Achievement Entry")
         
         scope_type = st.radio("Select Reporting Scope*", ["Department", "Committee / Cell / Club"], horizontal=True)
-        
         col1, col2, col3 = st.columns(3)
         with col1:
             if scope_type == "Department":
                 form_focus = st.selectbox("Department Focus*", DEPARTMENTS)
             else:
                 form_focus = st.selectbox("Committees / Cells / Clubs Focus*", COMMITTEES_CELLS_CLUBS)
-        with col2: 
-            form_month = st.selectbox("Reporting Month*", MONTHS)
-        with col3: 
-            form_year = st.selectbox("Academic Year*", ACADEMIC_YEARS)
+        with col2: form_month = st.selectbox("Reporting Month*", MONTHS)
+        with col3: form_year = st.selectbox("Academic Year*", ACADEMIC_YEARS)
             
         st.markdown("---")
         
@@ -811,7 +1031,7 @@ with tab_submit:
                         st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
                         st.rerun()
 
-# --- TAB 4: MONTHLY GENERATOR ---
+# --- TAB 5: MONTHLY GENERATOR ---
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
@@ -837,7 +1057,7 @@ with tab_document:
             st.success(f"🎯 Document synchronized into your Drive repository folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
-# --- TAB 5: ADMIN CONTROL ---
+# --- TAB 6: ADMIN CONTROL ---
 with tab_admin:
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
         st.toggle(
