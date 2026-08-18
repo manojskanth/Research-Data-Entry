@@ -220,7 +220,6 @@ def fetch_drive_folder_items(folder_id, creds):
         
         for item in all_items:
             if item.get('mimeType') == 'application/vnd.google-apps.folder':
-                # Fetch nested subfolder items
                 sub_res = drive_service.files().list(
                     q=f"'{item.get('id')}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'",
                     fields="files(id, name, mimeType, webViewLink, webContentLink, createdTime, description)",
@@ -249,13 +248,42 @@ def download_drive_file_bytes(file_id, creds):
         return None
 
 def extract_announcements_from_docx(file_bytes):
-    """Parses Word document (.docx) paragraphs & tables for call for papers and department tags."""
+    """Parses Word document (.docx) paragraphs & tables, capturing registration deadlines and clickable links."""
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
         current_title = ""
         current_lines = []
         current_dept = "All Units / Campus Wide"
+        current_reg_deadline = ""
+        current_sub_deadline = ""
+        current_reg_links = []
+        current_general_links = []
+
+        def parse_text_meta(text):
+            urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', text)
+            reg_urls = []
+            gen_urls = []
+            for u in urls:
+                if any(k in text.lower() for k in ["register", "registration", "form", "apply", "ticket", "eventbrite", "forms.gle"]):
+                    reg_urls.append(u)
+                else:
+                    gen_urls.append(u)
+
+            reg_deadline = ""
+            sub_deadline = ""
+            
+            # Specific Registration Deadline Regex
+            reg_match = re.search(r'(?:registration deadline|last date for registration|registration closes?|early bird registration|register by)[\s\:\-]+([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]+,?\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})', text, re.IGNORECASE)
+            if reg_match:
+                reg_deadline = reg_match.group(0).strip()
+
+            # Submission / General Deadline Regex
+            sub_match = re.search(r'(?:paper submission deadline|submission deadline|last date for submission|abstract deadline|due date|important dates?)[\s\:\-]+([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]+,?\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})', text, re.IGNORECASE)
+            if sub_match and not reg_deadline:
+                sub_deadline = sub_match.group(0).strip()
+
+            return reg_urls, gen_urls, reg_deadline, sub_deadline
 
         for p in doc.paragraphs:
             txt = p.text.strip()
@@ -270,14 +298,24 @@ def extract_announcements_from_docx(file_bytes):
                         current_dept = d
                         break
 
+            r_urls, g_urls, r_dl, s_dl = parse_text_meta(txt)
+            if r_urls: current_reg_links.extend(r_urls)
+            if g_urls: current_general_links.extend(g_urls)
+            if r_dl and not current_reg_deadline: current_reg_deadline = r_dl
+            if s_dl and not current_sub_deadline: current_sub_deadline = s_dl
+
             if p.style.name.startswith('Heading') or (p.runs and p.runs[0].bold and len(txt) < 120):
                 if current_title and current_lines:
                     entries.append({
                         "title": current_title,
                         "content": "\n".join(current_lines),
-                        "dept": current_dept
+                        "dept": current_dept,
+                        "reg_deadline": current_reg_deadline,
+                        "sub_deadline": current_sub_deadline,
+                        "reg_links": list(set(current_reg_links)),
+                        "gen_links": list(set(current_general_links))
                     })
-                    current_lines = []
+                    current_lines, current_reg_links, current_general_links, current_reg_deadline, current_sub_deadline = [], [], [], "", ""
                 current_title = txt
             else:
                 if not current_title:
@@ -288,7 +326,11 @@ def extract_announcements_from_docx(file_bytes):
             entries.append({
                 "title": current_title,
                 "content": "\n".join(current_lines),
-                "dept": current_dept
+                "dept": current_dept,
+                "reg_deadline": current_reg_deadline,
+                "sub_deadline": current_sub_deadline,
+                "reg_links": list(set(current_reg_links)),
+                "gen_links": list(set(current_general_links))
             })
 
         for table in doc.tables:
@@ -302,7 +344,16 @@ def extract_announcements_from_docx(file_bytes):
                         if d.lower() in (t_title + t_desc).lower():
                             t_dept = d
                             break
-                    entries.append({"title": t_title, "content": t_desc, "dept": t_dept})
+                    r_urls, g_urls, r_dl, s_dl = parse_text_meta(t_desc)
+                    entries.append({
+                        "title": t_title, 
+                        "content": t_desc, 
+                        "dept": t_dept, 
+                        "reg_deadline": r_dl,
+                        "sub_deadline": s_dl,
+                        "reg_links": list(set(r_urls)),
+                        "gen_links": list(set(g_urls))
+                    })
 
     except Exception:
         pass
@@ -564,6 +615,13 @@ def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
     mime = file_obj.get("mimeType", "")
     icon = "🖼️" if "image" in mime else ("📝" if "document" in mime or file_name.endswith(".docx") else "📄")
 
+    dl_match = re.search(r'(?:due|deadline|date|registration)[\s\_\-]*([0-9]{1,2}[A-Za-z]+|[0-9]{1,2}[\-\.][0-9]{1,2}[\-\.][0-9]{2,4})', file_name, re.IGNORECASE)
+    deadline_badge = f"""
+    <div style="background-color: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 4px; margin-top: 6px; display: inline-block;">
+        ⏰ Deadline: {dl_match.group(1)}
+    </div>
+    """ if dl_match else ""
+
     card_html = f"""
     <div style="background-color: #FFFFFF; border-radius: 10px; padding: 16px; box-shadow: 0 3px 10px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; margin-bottom: 15px;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
@@ -572,7 +630,8 @@ def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
             </span>
             <span style="font-size: 16px;">{icon}</span>
         </div>
-        <h4 style="margin: 0 0 10px 0; color: #1E293B; font-size: 14px; line-height: 1.4; word-break: break-word;">{file_name}</h4>
+        <h4 style="margin: 0 0 4px 0; color: #1E293B; font-size: 14px; line-height: 1.4; word-break: break-word;">{file_name}</h4>
+        {deadline_badge}
         <div style="margin-top: 10px; font-size: 12px;">
             <a href="{view_link}" target="_blank" style="background-color: #EEF2FF; color: #1A237E; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
                 🔍 Open Document / Flyer
@@ -583,16 +642,56 @@ def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_parsed_doc_entry(entry):
+    # Distinct Badges for Registration Deadline and Submission Deadline
+    badges_html = []
+    if entry.get('reg_deadline'):
+        badges_html.append(f"""
+        <div style="background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 12px; padding: 5px 10px; border-radius: 6px; margin-right: 8px; margin-bottom: 6px; display: inline-block;">
+            🎟️ <b>Registration Deadline:</b> {entry.get('reg_deadline')}
+        </div>
+        """)
+    if entry.get('sub_deadline'):
+        badges_html.append(f"""
+        <div style="background-color: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; font-weight: 700; font-size: 12px; padding: 5px 10px; border-radius: 6px; margin-bottom: 6px; display: inline-block;">
+            ⏰ <b>Submission Deadline:</b> {entry.get('sub_deadline')}
+        </div>
+        """)
+
+    # Interactive Clickable URL Buttons
+    action_buttons = []
+    if entry.get("reg_links"):
+        for url in entry.get("reg_links"):
+            clean_url = url if url.startswith("http") else f"https://{url}"
+            action_buttons.append(f"""
+            <a href='{clean_url}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 12px; margin-right: 8px; margin-top: 8px; display: inline-block; box-shadow: 0 2px 6px rgba(225, 29, 72, 0.25);'>
+                🎟️ Register Here (Registration Link)
+            </a>
+            """)
+
+    if entry.get("gen_links"):
+        for url in entry.get("gen_links"):
+            clean_url = url if url.startswith("http") else f"https://{url}"
+            action_buttons.append(f"""
+            <a href='{clean_url}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 8px; display: inline-block;'>
+                🔗 Conference / Portal URL
+            </a>
+            """)
+
+    rendered_badges = f"<div style='margin-bottom: 8px;'>{''.join(badges_html)}</div>" if badges_html else ""
+    rendered_buttons = f"<div style='margin-top: 12px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
+
     card_html = f"""
-    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 16px; box-shadow: 0 3px 10px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 15px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span style="background-color: #4338CA; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">
                 CALL FOR PAPERS / CONFERENCE
             </span>
             <span style="color: #64748B; font-size: 11px; font-weight: 600;">{entry.get('dept')}</span>
         </div>
-        <h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700;">{entry.get('title')}</h4>
+        <h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700; line-height: 1.4;">{entry.get('title')}</h4>
+        {rendered_badges}
         <p style="margin: 0; color: #475569; font-size: 13px; white-space: pre-line; line-height: 1.5;">{entry.get('content')}</p>
+        {rendered_buttons}
     </div>
     """
     st.markdown(card_html, unsafe_allow_html=True)
@@ -732,7 +831,7 @@ with tab_gallery:
     else:
         st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
 
-# --- TAB 2: LIVE ANNOUNCEMENTS & EVENTS (TWO-COLUMN BULLETIN WITH WORD DOC EXTRACTOR) ---
+# --- TAB 2: LIVE ANNOUNCEMENTS & EVENTS (TWO-COLUMN BULLETIN WITH REGISTRATION DEADLINES & URLS) ---
 with tab_announcements:
     st.subheader("📢 Campus Bulletin & Upcoming Opportunities")
     st.markdown("Live repository of posters, call for papers, upcoming conferences, and departmental activities.")
@@ -747,11 +846,10 @@ with tab_announcements:
             st.rerun()
 
     # Fetch Files from Designated Drive Folders
-    with st.spinner("Accessing Google Drive folders and reading announcements..."):
+    with st.spinner("Accessing Google Drive folders and extracting announcements..."):
         research_files = fetch_drive_folder_items(RESEARCH_EVENTS_FOLDER_ID, creds)
         campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
 
-    # Check for Word Docs (.docx) to extract text directly
     parsed_docx_entries = []
     regular_research_files = []
 
