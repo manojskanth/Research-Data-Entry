@@ -6,14 +6,30 @@ from googleapiclient.http import MediaIoBaseUpload
 import io
 import json
 import base64
+import os
+import pandas as pd
 from docx import Document
 from docx.shared import Pt
 
 # --- 1. CORE SYSTEM CONFIGURATION ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 
-DEPARTMENTS = ["English & Languages", "Social Sciences & Humanities", "Sciences", "Management", "Commerce", "IQAC", "Research & Innovation", "Physical Education"]
-COMMITTEES_CELLS_CLUBS = ["Alumni", "Anti-Ragging", "Disciplinary", "Equal Opportunity", "Grievance Redressal", "Internal Complaints", "Scholarship", "Library", "Placement", "Public Relations", "Women Empowerment", "Student Activity Clubs", "IIC"]
+DEPARTMENTS = [
+    "English & Languages", 
+    "Social Sciences & Humanities", 
+    "Sciences", 
+    "Management", 
+    "Commerce", 
+    "IQAC", 
+    "Research & Innovation", 
+    "Physical Education"
+]
+COMMITTEES_CELLS_CLUBS = [
+    "Alumni", "Anti-Ragging", "Disciplinary", "Equal Opportunity", 
+    "Grievance Redressal", "Internal Complaints", "Scholarship", 
+    "Library", "Placement", "Public Relations", "Women Empowerment", 
+    "Student Activity Clubs", "IIC"
+]
 ACADEMIC_YEARS = ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2029-30"]
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
@@ -78,7 +94,7 @@ FACULTY_DIRECTORY = {
     "vasantharao@stmaryscollege.in": {"name": "Mr. Vasantha Rao B", "secret_key": "vasantharao_pass"},
     "gisageorge@stmaryscollege.in": {"name": "Ms. Gisa George", "secret_key": "gisageorge_pass"},
     "research@stmaryscollege.in": {"name": "Research Admin", "secret_key": "research_pass"},
-    "iqac@stmaryscollege.in": {"name": "Head,IQAC", "secret_key": "iqac_pass"},
+    "iqac@stmaryscollege.in": {"name": "Head, IQAC", "secret_key": "iqac_pass"},
     "harini@stmaryscollege.in": {"name": "Ms. Harini", "secret_key": "harini_pass"},
     "jayalakshmi@stmaryscollege.in": {"name": "Ms. Jayalakshmi D", "secret_key": "jayalakshmi_pass"},
     "rupini@stmaryscollege.in": {"name": "Ms. B. Rupini", "secret_key": "rupini_pass"},
@@ -102,22 +118,29 @@ FACULTY_DIRECTORY = {
 # --- 2. GOOGLE SERVICE INTEGRATION HANDSHAKE ---
 def get_google_credentials():
     try:
-        encoded_json = st.secrets["GCP_COMPLETE_B64"]
-        decoded_json_string = base64.b64decode(encoded_json.encode('utf-8')).decode('utf-8')
-        info = json.loads(decoded_json_string)
+        if "gcp_service_account" in st.secrets:
+            info = dict(st.secrets["gcp_service_account"])
+        elif "GCP_COMPLETE_B64" in st.secrets:
+            raw_secret = str(st.secrets["GCP_COMPLETE_B64"]).strip()
+            if raw_secret.startswith("{") and raw_secret.endswith("}"):
+                info = json.loads(raw_secret)
+            else:
+                padded_b64 = raw_secret + "=" * (-len(raw_secret) % 4)
+                decoded_bytes = base64.b64decode(padded_b64)
+                info = json.loads(decoded_bytes.decode('utf-8', errors='ignore'))
+        else:
+            st.error("🔑 Credentials configuration missing in Streamlit Secrets.")
+            st.stop()
+
         return service_account.Credentials.from_service_account_info(
             info, 
             scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         )
     except Exception as e:
-        st.error(f"Ecosystem Verification Block Error: {str(e)}")
+        st.error(f"Ecosystem Verification Error: {str(e)}")
         st.stop()
 
 def get_or_create_drive_folder(folder_name, parent_folder_id, creds):
-    """
-    Searches for a subfolder by name inside a parent Drive folder.
-    Creates it if it does not exist; reuses its ID if it already exists.
-    """
     try:
         drive_service = build('drive', 'v3', credentials=creds)
         query = (
@@ -127,10 +150,8 @@ def get_or_create_drive_folder(folder_name, parent_folder_id, creds):
             f"trashed = false"
         )
         results = drive_service.files().list(
-            q=query, 
-            fields="files(id, name)", 
-            supportsAllDrives=True, 
-            includeItemsFromAllDrives=True
+            q=query, fields="files(id, name)", 
+            supportsAllDrives=True, includeItemsFromAllDrives=True
         ).execute()
         
         files = results.get('files', [])
@@ -143,9 +164,7 @@ def get_or_create_drive_folder(folder_name, parent_folder_id, creds):
             'parents': [parent_folder_id]
         }
         created_folder = drive_service.files().create(
-            body=folder_metadata, 
-            fields='id', 
-            supportsAllDrives=True
+            body=folder_metadata, fields='id', supportsAllDrives=True
         ).execute()
         
         try:
@@ -211,6 +230,20 @@ def append_and_sort_sheet_by_department(sheet_name, new_row, dept_column_index, 
     except Exception as e:
         st.error(f"Sorting Error: {str(e)}")
 
+def fetch_sheet_records(sheet_name, creds):
+    try:
+        sheets_service = build('sheets', 'v4', credentials=creds)
+        res = sheets_service.spreadsheets().values().get(
+            spreadsheetId=MASTER_SHEET_ID, 
+            range=f"'{sheet_name}'!A1:Z2000"
+        ).execute()
+        rows = res.get('values', [])
+        if not rows or len(rows) < 2:
+            return pd.DataFrame()
+        return pd.DataFrame(rows[1:], columns=rows[0])
+    except Exception:
+        return pd.DataFrame()
+
 # --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(name_focus, active_month, active_year, creds):
     doc = Document()
@@ -227,7 +260,6 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
     month_map = {"jan": "january", "feb": "february", "mar": "march", "apr": "april", "may": "may", "jun": "june", "jul": "july", "aug": "august", "sep": "september", "oct": "october", "nov": "november", "dec": "december"}
     target_month_clean = str(active_month).strip().lower()
 
-    # --- 🏢 UNIFIED COMMITTEE MASTER DOCUMENT DISPATCH (FROM 4TH SHEET) ---
     if name_focus == "Committees / Cells / Clubs":
         scope_p.add_run("COMMITTEES / CELLS / CLUBS MASTER DOSSIER\n").bold = True
         scope_p.runs[0].font.size = Pt(13)
@@ -265,11 +297,9 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
         doc.save(doc_stream)
         return doc_stream.getvalue()
 
-    # --- 🔬 STANDARD DEPARTMENT ENGINE SCOPE (FROM ORIGINAL 3 SHEETS) ---
     scope_p.add_run(f"DEPARTMENT OF {name_focus.upper()}\n").bold = True
     scope_p.runs[0].font.size = Pt(13)
     
-    # --- MODIFIED DATA EXTRACTION LAYER ---
     sections = [
         {"title": "I. Research Publications & Paper Presentations", "sheet": "Research_Database", "filter": ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation"], "desc": "Include journal articles, book chapters, full books, or papers presented at conferences."},
         {"title": "II. Faculty Development Programs (FDPs) & Workshops", "sheet": "Research_Database", "filter": ["FDP", "Workshop"], "desc": "Include training programs attended or successfully completed."},
@@ -299,7 +329,6 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
                 if len(row) >= 2:
                     padded = pad_row(row, required_length=15)
                     
-                    # Exact tracking offsets assigned based on the structural column layouts of each tab
                     if sec["sheet"] == "Research_Database":
                         row_dept, row_cat, row_month = padded[1], padded[2], padded[13]
                     elif sec["sheet"] == "Faculty_Achievements":
@@ -359,7 +388,51 @@ def styled_block(format_text, example_text):
 """.strip()
     st.markdown(html_string, unsafe_allow_html=True)
 
-# --- 4. STREAMLIT FRAMEWORK DESK ---
+# --- 4. WEBSITE FRONT-PAGE COMPONENTS (SCROLLING TICKER & GALLERY CARDS) ---
+def render_scrolling_ticker(announcements):
+    ticker_text = " &nbsp;&nbsp;&nbsp; 🌟 &nbsp;&nbsp;&nbsp; ".join(announcements)
+    ticker_html = f"""
+    <div style="background: linear-gradient(90deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 10px 15px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); font-weight: 500;">
+        <marquee behavior="scroll" direction="left" scrollamount="6">
+            📢 <b>LATEST RESEARCH HIGHLIGHTS & INDEXED PUBLICATIONS:</b> &nbsp;&nbsp;&nbsp; {ticker_text}
+        </marquee>
+    </div>
+    """
+    st.markdown(ticker_html, unsafe_allow_html=True)
+
+def render_publication_achiever_card(author, dept, title, journal, indexing, link_url):
+    badge_colors = {
+        "Scopus": "#E65100",
+        "Web of Science": "#0D47A1",
+        "SCIE": "#1B5E20",
+        "ABDC": "#4A148C",
+        "UGC Care Listed": "#B71C1C",
+        "PubMed": "#006064"
+    }
+    badge_bg = badge_colors.get(indexing, "#374151")
+    link_html = f"<a href='{link_url}' target='_blank' style='color:#1A237E; font-weight:600; text-decoration:none;'>🔗 View Paper / Document</a>" if link_url and link_url != "Pending Folder Permissions Link" else ""
+
+    card_html = f"""
+    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; margin-bottom: 20px; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <span style="background-color:{badge_bg}; color:white; font-size:11px; font-weight:700; padding:3px 8px; border-radius:4px; text-transform:uppercase;">
+                    {indexing}
+                </span>
+                <span style="color:#64748B; font-size:12px; font-weight:500;">{dept}</span>
+            </div>
+            <h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; line-height: 1.4;">{title}</h4>
+            <p style="margin: 0 0 6px 0; color: #334155; font-size: 13px; font-weight: 600;">✍️ {author}</p>
+            <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; font-style: italic;">📖 {journal}</p>
+        </div>
+        <div style="padding-top:8px; border-top:1px solid #F1F5F9; font-size:12px;">
+            {link_html}
+        </div>
+    </div>
+    """
+    st.markdown(card_html, unsafe_allow_html=True)
+
+# --- 5. STREAMLIT FRAMEWORK DESK ---
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "logged_email" not in st.session_state: st.session_state.logged_email = ""
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
@@ -369,7 +442,10 @@ st.set_page_config(page_title="St. Mary's Integrated Portal", page_icon="🏫", 
 if not st.session_state.authenticated:
     _, img_col, _ = st.columns([2, 1, 2])
     with img_col:
-        st.image("logo.png", use_container_width=True)
+        if os.path.exists("logo.png"):
+            st.image("logo.png", use_container_width=True)
+        else:
+            st.markdown("<h1 style='text-align:center;'>🏫</h1>", unsafe_allow_html=True)
         
     st.markdown("<h2 style='text-align: center;'>St. Mary's Central Achievements Portal</h2>", unsafe_allow_html=True)
     _, col_l2, _ = st.columns([1, 1.5, 1])
@@ -387,10 +463,14 @@ if not st.session_state.authenticated:
 
 # --- HEADER WORKSPACE WITH LOGOUT TOOL ---
 current_faculty_name = FACULTY_DIRECTORY[st.session_state.logged_email]["name"]
+creds = get_google_credentials()
 
 logo_col, header_col, logout_col = st.columns([1, 7, 1.5])
 with logo_col:
-    st.image("logo.png", width=65)
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=65)
+    else:
+        st.markdown("<h3>🏫</h3>", unsafe_allow_html=True)
 with header_col:
     st.markdown(f"### Welcome back, **{current_faculty_name}**")
 with logout_col:
@@ -399,19 +479,90 @@ with logout_col:
         st.session_state.logged_email = ""
         st.rerun()
 
-tab_submit, tab_document, tab_admin = st.tabs(["📝 Submit Achievement Log", "📊 Monthly Achievement Generator", "🔒 Admin Control"])
+# --- TAB NAVIGATION (WEBSITE HOMEPAGE FIRST) ---
+tab_gallery, tab_submit, tab_document, tab_admin = st.tabs([
+    "🌐 Research Portal Home", 
+    "📝 Enter Research Data", 
+    "📊 Monthly Achievement Generator", 
+    "🔒 Admin Control"
+])
 
-with tab_admin:
-    if st.session_state.logged_email == "research@stmaryscollege.in":
-        st.toggle(
-            "Enable Data Entry for Users", 
-            key="admin_toggle_widget", 
-            value=st.session_state.get("admin_enabled", True)
-        )
-        st.session_state.admin_enabled = st.session_state.admin_toggle_widget
-    else: 
-        st.warning("Unauthorized access.")
+# --- TAB 1: RESEARCH PORTAL HOME (FRONT PAGE & ACHIEVERS GALLERY) ---
+with tab_gallery:
+    # 1. Fetch live records for ticker & cards
+    res_df = fetch_sheet_records("Research_Database", creds)
+    
+    # Construct ticker announcements
+    if not res_df.empty and len(res_df) > 0:
+        ticker_items = []
+        for _, row in res_df.tail(10).iterrows():
+            f_auth = row.iloc[0] if len(row) > 0 else "Faculty"
+            f_title = row.iloc[4] if len(row) > 4 else "Research Paper"
+            f_idx = row.iloc[3] if len(row) > 3 else "Indexed"
+            f_jour = row.iloc[8] if len(row) > 8 else "Journal"
+            ticker_items.append(f"{f_auth} ({f_idx}): '{f_title}' in {f_jour}")
+        render_scrolling_ticker(ticker_items)
+    else:
+        render_scrolling_ticker([
+            "Dr. Srinath Naganathan published in Scopus Indexed Journal",
+            "Dr. Rajita Anand Singh presented research paper at International Colloquium",
+            "Department of Sciences logs new indexed publication records"
+        ])
 
+    st.markdown("""
+    <div style="background-color:#F8FAFC; border-left: 5px solid #1A237E; padding:18px 22px; border-radius:6px; margin-bottom:25px;">
+        <h3 style="margin:0 0 6px 0; color:#1A237E;">🏆 Faculty Research Achievers Gallery</h3>
+        <p style="margin:0; color:#475569; font-size:14px;">Showcasing top-tier publications in <b>Scopus, Web of Science, ABDC, SCIE, and UGC-CARE</b> journals.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 2. Filter tabs for Indexed Types
+    gallery_filter = st.radio(
+        "Filter by Indexation Database:", 
+        ["All High-Impact", "Scopus", "Web of Science / SCIE", "ABDC", "UGC Care Listed"], 
+        horizontal=True
+    )
+
+    if not res_df.empty and len(res_df) > 0:
+        filtered_rows = []
+        for _, r in res_df.iterrows():
+            idx_val = str(r.iloc[3]).strip() if len(r) > 3 else ""
+            if gallery_filter == "All High-Impact":
+                if any(k in idx_val for k in ["Scopus", "Web of Science", "SCIE", "ABDC", "UGC Care Listed"]):
+                    filtered_rows.append(r)
+            elif gallery_filter == "Web of Science / SCIE":
+                if "Web of Science" in idx_val or "SCIE" in idx_val:
+                    filtered_rows.append(r)
+            elif gallery_filter in idx_val:
+                filtered_rows.append(r)
+                
+        if filtered_rows:
+            cols = st.columns(3)
+            for i, row in enumerate(filtered_rows):
+                author = row.iloc[0] if len(row) > 0 else "Faculty Member"
+                dept = row.iloc[1] if len(row) > 1 else "Department"
+                indexing = row.iloc[3] if len(row) > 3 else "Peer Reviewed"
+                title = row.iloc[4] if len(row) > 4 else "Research Publication"
+                link_url = row.iloc[5] if len(row) > 5 else ""
+                journal = row.iloc[8] if len(row) > 8 else "Academic Journal"
+                
+                with cols[i % 3]:
+                    render_publication_achiever_card(author, dept, title, journal, indexing, link_url)
+        else:
+            st.info(f"No publications currently logged under '{gallery_filter}'. Use the **Enter Research Data** tab to record your publication!")
+    else:
+        st.info("Showing preview records. Once research entries are submitted, live entries will automatically display here.")
+        sample_cards = [
+            ("Dr. Manoj Kanth", "Management", "Strategic Corporate Governance & Institutional Resilience in Higher Ed", "Journal of Financial Studies", "ABDC", "#"),
+            ("Dr. Srinath Naganathan", "Sciences", "Bioremediation Kinetics and Optimization of Oily Sludge Waste Systems", "Environmental Science & Pollution", "Scopus", "#"),
+            ("Dr. Rajita Anand Singh", "English & Languages", "Narrative Structures and Diasporic Identity in Modern Commonwealth Fiction", "Literary Review Quarterly", "UGC Care Listed", "#")
+        ]
+        cols = st.columns(3)
+        for i, (auth, dept, title, jour, idx_t, lnk) in enumerate(sample_cards):
+            with cols[i % 3]:
+                render_publication_achiever_card(auth, dept, title, jour, idx_t, lnk)
+
+# --- TAB 2: DATA ENTRY WORKSPACE (ORIGINAL ENTRY DESK) ---
 with tab_submit:
     is_locked = not st.session_state.get("admin_enabled", True)
     is_admin = st.session_state.get("logged_email") == "research@stmaryscollege.in"
@@ -445,8 +596,6 @@ with tab_submit:
             ])
 
             if classification != "--- Select Category ---":
-                creds = get_google_credentials()
-                
                 if classification == "🔬 Research Database":
                     r_type = st.selectbox("Research Type", ["Paper Publication", "Book Chapter", "Full Book", "Paper Presentation", "FDP", "Workshop"])
                     collab_check = st.checkbox("Collaboration involved?", key="collab_box")
@@ -456,7 +605,7 @@ with tab_submit:
                         org = st.text_input("Organised By/Journal Name*")
                         
                         if r_type in ["Paper Publication", "Book Chapter", "Full Book"]:
-                            index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care Listed", "Scopus", "PubMed", "Peer Reviewed", "DOAJ", "ABDC", "SCIE", "Embase"])
+                            index_type = st.selectbox("Indexing/Journal Type*", ["UGC Care Listed", "Scopus", "Web of Science", "SCIE", "ABDC", "PubMed", "Peer Reviewed", "DOAJ", "Embase"])
                             issn = st.text_input("ISSN/ISBN Number*")
                             url = st.text_input("URL*")
                             date_span, scope = "NA", "NA"
@@ -555,7 +704,6 @@ with tab_submit:
                                 st.success("🎉 Contribution submitted!")
 
         else:
-            creds = get_google_credentials()
             target_sheet = "Committees_Cells_Clubs"
             styled_block("[Committee Name], organized [Event Type/Activity Details] on [Date].", "The Placement Cell coordinated a campus recruitment drive with Deloitte for final year commerce students on May 18, 2026.")
             
@@ -583,6 +731,7 @@ with tab_submit:
                         append_and_sort_sheet_by_department(target_sheet, new_row, 0, creds)
                         st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
 
+# --- TAB 3: MONTHLY GENERATOR ---
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
@@ -598,17 +747,27 @@ with tab_document:
     with col_d3: view_year = st.selectbox("Target Year Scope", ACADEMIC_YEARS, key="vy1")
         
     if st.button("🏗️ Construct Automated Monthly Document Package", use_container_width=True, type="primary"):
-        creds = get_google_credentials()
         with st.spinner("Assembling structured records from sheets..."):
             docx_bytes = build_monthly_word_document(view_focus, view_month, view_year, creds)
             file_name_string = f"Monthly_Achievements_Report_{view_focus.replace(' ', '_')}_{view_month}_{view_year}.docx"
             
-            # Dynamic destination choice: send to specific department folder or the committee folder vault
             target_folder = DEPARTMENT_FOLDERS.get(view_focus, COMMITTEE_FOLDER_ID) if view_focus != "Committees / Cells / Clubs" else COMMITTEE_FOLDER_ID
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [target_folder], creds)
             
             st.success(f"🎯 Document synchronized into your Drive repository folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+
+# --- TAB 4: ADMIN CONTROL ---
+with tab_admin:
+    if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
+        st.toggle(
+            "Enable Data Entry for Users", 
+            key="admin_toggle_widget", 
+            value=st.session_state.get("admin_enabled", True)
+        )
+        st.session_state.admin_enabled = st.session_state.admin_toggle_widget
+    else: 
+        st.warning("Unauthorized access. Admin privileges restricted to Research & IQAC accounts.")
 
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: olive;'>Developed by Research Committee @ St. Mary's College</div>", unsafe_allow_html=True)
