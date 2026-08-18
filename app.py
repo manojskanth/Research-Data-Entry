@@ -16,8 +16,8 @@ from docx.shared import Pt
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 
 # Dedicated Drive Folder Repositories
-RESEARCH_EVENTS_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS"  # Conferences, Word Dossiers, CFP Posters
-CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS" # Departmental & Student Activities
+RESEARCH_EVENTS_FOLDER_ID = "1UZxcyKw3RgmjyNV7eyIgwhzOkovB5fhF"  # Upcoming Research Events (Conferences, CFP, Journals)
+CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS" # Upcoming College Events (Dept, Clubs, Sports)
 COMMITTEE_FOLDER_ID = "1pzrbGsViKtzsQYBPt-p9ZqQ5WXbzdHcW"
 
 DEPARTMENTS = [
@@ -203,6 +203,7 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
         return "Pending Folder Permissions Link"
 
 def fetch_drive_folder_items(folder_id, creds):
+    """Recursively fetches all files within the folder and any nested subfolders."""
     try:
         drive_service = build('drive', 'v3', credentials=creds)
         query = f"'{folder_id}' in parents and trashed = false"
@@ -210,10 +211,28 @@ def fetch_drive_folder_items(folder_id, creds):
             q=query, 
             fields="files(id, name, mimeType, webViewLink, webContentLink, createdTime, description)",
             supportsAllDrives=True, 
-            includeItemsFromAllDrives=True
+            includeItemsFromAllDrives=True,
+            pageSize=100
         ).execute()
-        return results.get('files', [])
-    except Exception as e:
+        
+        all_items = results.get('files', [])
+        file_list = []
+        
+        for item in all_items:
+            if item.get('mimeType') == 'application/vnd.google-apps.folder':
+                # Fetch nested subfolder items
+                sub_res = drive_service.files().list(
+                    q=f"'{item.get('id')}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'",
+                    fields="files(id, name, mimeType, webViewLink, webContentLink, createdTime, description)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True
+                ).execute()
+                file_list.extend(sub_res.get('files', []))
+            else:
+                file_list.append(item)
+                
+        return file_list
+    except Exception:
         return []
 
 def download_drive_file_bytes(file_id, creds):
@@ -238,13 +257,11 @@ def extract_announcements_from_docx(file_bytes):
         current_lines = []
         current_dept = "All Units / Campus Wide"
 
-        # Check paragraphs
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt:
                 continue
 
-            # Detect department tag format e.g., [Commerce] or Department of Management
             dept_match = re.search(r'\[(.*?)\]|Department of\s+([A-Za-z &]+)', txt, re.IGNORECASE)
             if dept_match:
                 detected = dept_match.group(1) or dept_match.group(2)
@@ -253,7 +270,6 @@ def extract_announcements_from_docx(file_bytes):
                         current_dept = d
                         break
 
-            # Bold text or Headings treated as entry title
             if p.style.name.startswith('Heading') or (p.runs and p.runs[0].bold and len(txt) < 120):
                 if current_title and current_lines:
                     entries.append({
@@ -275,7 +291,6 @@ def extract_announcements_from_docx(file_bytes):
                 "dept": current_dept
             })
 
-        # Check tables inside docx
         for table in doc.tables:
             for row in table.rows:
                 cells_text = [c.text.strip() for c in row.cells if c.text.strip()]
@@ -722,10 +737,16 @@ with tab_announcements:
     st.subheader("📢 Campus Bulletin & Upcoming Opportunities")
     st.markdown("Live repository of posters, call for papers, upcoming conferences, and departmental activities.")
 
-    filter_options = ["All Units / Campus Wide"] + DEPARTMENTS + COMMITTEES_CELLS_CLUBS
-    selected_unit = st.selectbox("🎯 Filter Events by Department / Club / Committee:", filter_options)
+    col_f1, col_f2 = st.columns([4, 1])
+    with col_f1:
+        filter_options = ["All Units / Campus Wide"] + DEPARTMENTS + COMMITTEES_CELLS_CLUBS
+        selected_unit = st.selectbox("🎯 Filter Events by Department / Club / Committee:", filter_options)
+    with col_f2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 Refresh Bulletin", use_container_width=True):
+            st.rerun()
 
-    # Fetch Files from Drive Folders
+    # Fetch Files from Designated Drive Folders
     with st.spinner("Accessing Google Drive folders and reading announcements..."):
         research_files = fetch_drive_folder_items(RESEARCH_EVENTS_FOLDER_ID, creds)
         campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
@@ -751,7 +772,7 @@ with tab_announcements:
         st.markdown("""
         <div style="background-color: #EEF2FF; border-left: 4px solid #1A237E; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;">
             <h4 style="margin: 0; color: #1A237E;">🔬 Upcoming Conferences & Call for Papers</h4>
-            <p style="margin: 0; color: #475569; font-size: 12px;">Extracted from Word dossiers, Scopus conferences, symposiums & grant circulars.</p>
+            <p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming Research Events</code></p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -774,13 +795,13 @@ with tab_announcements:
                 render_bulletin_card(f, "Research Poster / CFP", bg_color="#1A237E")
 
         if not parsed_docx_entries and not regular_research_files:
-            st.info("No active conference circulars or Call-for-Paper documents found.")
+            st.info("No conference circulars, Word dossiers, or Call-for-Paper documents found in the Research Events folder.")
 
     with col_right:
         st.markdown("""
         <div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;">
             <h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4>
-            <p style="margin: 0; color: #475569; font-size: 12px;">Workshops, guest lectures, club competitions, and sports events.</p>
+            <p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming College Events</code></p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -795,7 +816,7 @@ with tab_announcements:
             else:
                 st.info(f"No student/department activities specifically tagged for '{selected_unit}'.")
         else:
-            st.info("No departmental or student activity flyers currently in the vault.")
+            st.info("No departmental or student activity flyers currently found in the College Events folder.")
 
     # Admin Control Panel for Overriding/Deleting Outdated Event Flyers & Word Dossiers
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
