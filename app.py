@@ -301,9 +301,11 @@ def extract_announcements_from_docx(file_bytes):
                         current_dept = d
                         break
 
-            # Update category banner if encountered
-            if any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "conference"]):
-                current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt[:40].upper()
+            # If the paragraph is purely a Section/Category Header, update state and DO NOT make a standalone card
+            is_header_banner = any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "upcoming conferences"])
+            if is_header_banner and (len(txt) < 80 or ":" in txt):
+                current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt.strip().upper()
+                continue  # Skip card creation for section banners
 
             r_urls, g_urls, r_dl, s_dl = parse_text_meta(txt)
             if r_urls: current_reg_links.extend(r_urls)
@@ -332,6 +334,7 @@ def extract_announcements_from_docx(file_bytes):
                 if cleaned_line:
                     current_lines.append(cleaned_line)
 
+        # Append last paragraph entry if valid
         if current_title and current_lines:
             entries.append({
                 "title": current_title,
@@ -380,7 +383,7 @@ def extract_announcements_from_docx(file_bytes):
 
                     entries.append({
                         "title": t_title, 
-                        "content": formatted_content if formatted_content else "Open for submission and review.", 
+                        "content": formatted_content if formatted_content else "Open for continuous submission and review.", 
                         "dept": t_dept, 
                         "category": current_category,
                         "reg_deadline": t_reg_dl,
@@ -812,7 +815,7 @@ with tab_gallery:
     valid_publications = []
     if not res_df.empty and len(res_df) > 0:
         for _, r in res_df.iterrows():
-            pub_type = str(r.iloc[2]).strip() if len(r) > 2 else ""
+            pub_type = str(r.iloc[2]).strip() if len(row := r) > 2 else ""
             indexing = str(r.iloc[3]).strip() if len(r) > 3 else ""
             is_full_book = "full book" in pub_type.lower()
             is_valid_index = indexing.upper() not in ["NA", "N/A", "NONE", ""] and indexing.strip() != ""
