@@ -720,7 +720,7 @@ def render_parsed_doc_entry(entry):
     
     notes_html = ""
     if entry.get("notes"):
-        valid_notes = [html.escape(str(n)) for n in entry["notes"] if str(n) != entry.get("title") and len(str(n)) > 5 and str(n) not in [entry.get('frequency'), entry.get('guidelines'], entry.get('apc')]]
+        valid_notes = [html.escape(str(n)) for n in entry["notes"] if str(n) != entry.get("title") and len(str(n)) > 5 and str(n) not in [entry.get('frequency'), entry.get('guidelines'), entry.get('apc')]]
         if valid_notes:
             notes_html = f"<div style='color: #475569; font-size: 13.5px; line-height: 1.6; margin-top: 8px;'>{'<br>'.join(['• ' + vn for vn in valid_notes])}</div>"
 
@@ -877,7 +877,7 @@ with tab_gallery:
     else:
         st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
 
-# --- TAB 2: JOURNAL INFO (DEDICATED JOURNAL TAB WITH INCREASED FONT) ---
+# --- TAB 2: JOURNAL INFO ---
 with tab_journals:
     st.subheader("📖 Research Journals & Call for Papers")
     st.markdown("Inspected repository of indexed journals, guidelines, publication frequencies, and submission portals.")
@@ -916,7 +916,6 @@ with tab_journals:
     else:
         st.info("No journal dossier documents found in the Research Events folder.")
 
-    # Admin Control
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
         with st.expander("🛠️ Manage Journal Dossier Files"):
             u_file = st.file_uploader("Upload New Journal Dossier (.docx):", type=["docx"], key="journal_upload")
@@ -926,7 +925,7 @@ with tab_journals:
                     st.success("🎉 Journal document uploaded successfully!")
                     st.rerun()
 
-# --- TAB 3: EVENTS CALENDAR (TODAY'S TOP BOX + 2-WEEK SCHEDULE) ---
+# --- TAB 3: EVENTS CALENDAR ---
 with tab_events:
     st.subheader("📅 College Events & Activities Calendar")
     st.markdown("Complete chronological schedule extracted from the 2026–27 College Almanac.")
@@ -946,7 +945,6 @@ with tab_events:
         </div>
         """, unsafe_allow_html=True)
         
-        # Render cards inside container
         for ev in today_events:
             render_almanac_event_card(ev, is_highlighted=True)
     else:
@@ -969,7 +967,6 @@ with tab_events:
     else:
         st.info("No additional Almanac activities scheduled for the next 14 days.")
 
-    # 3. Complementary Flyers / Posters from Drive
     if campus_files:
         st.markdown("<hr style='margin: 25px 0;'>", unsafe_allow_html=True)
         st.markdown("### 📁 **Departmental Event Posters & Circulars**")
