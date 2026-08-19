@@ -518,24 +518,29 @@ def fetch_sheet_records(sheet_name, creds):
         max_cols = len(headers)
         data = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows[1:]]
         df = pd.DataFrame(data, columns=headers)
-        
-        # Robust timestamp extraction: searches entire row for a datetime string if col 0 fails
-        def extract_row_datetime(row):
-            for val in row:
-                try:
-                    dt = pd.to_datetime(str(val), errors='raise')
-                    if pd.notnull(dt) and dt.year >= 2024:
-                        return dt
-                except Exception:
-                    pass
+
+        # Explicit Timestamp column sorting (Newest to Oldest)
+        def parse_timestamp(val):
+            try:
+                dt = pd.to_datetime(str(val), errors='raise')
+                if pd.notnull(dt) and dt.year >= 2024:
+                    return dt
+            except Exception:
+                pass
             return pd.Timestamp.min
 
-        try:
-            df['__parsed_ts'] = df.apply(extract_row_datetime, axis=1)
-            df = df.sort_values(by='__parsed_ts', ascending=False, na_position='last').drop(columns=['__parsed_ts'])
-        except Exception:
-            df = df.iloc[::-1].reset_index(drop=True)
-            
+        # Scan each row for any timestamp-like cell
+        timestamps = []
+        for _, row in df.iterrows():
+            best_dt = pd.Timestamp.min
+            for cell in row:
+                dt = parse_timestamp(cell)
+                if dt > best_dt:
+                    best_dt = dt
+            timestamps.append(best_dt)
+
+        df['__real_timestamp'] = timestamps
+        df = df.sort_values(by='__real_timestamp', ascending=False, na_position='last').drop(columns=['__real_timestamp'])
         return df.reset_index(drop=True)
     except Exception:
         return pd.DataFrame()
