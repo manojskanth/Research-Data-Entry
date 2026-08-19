@@ -84,7 +84,7 @@ FACULTY_DIRECTORY = {
     "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
     "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
     "kirtibdnr@stmaryscollege.in": {"name": "Dr. Kirti", "secret_key": "kirti_pass"},
-    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikhasharma_pass"},
+    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikha_pass"},
     "himani@stmaryscollege.in": {"name": "Dr. Himani", "secret_key": "himani_pass"},
     "roy@stmaryscollege.in": {"name": "Mr. MSS Roy", "secret_key": "roy_pass"},
     "phebi@stmaryscollege.in": {"name": "Ms. Phebi", "secret_key": "phebi_pass"},
@@ -519,27 +519,23 @@ def fetch_sheet_records(sheet_name, creds):
         data = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows[1:]]
         df = pd.DataFrame(data, columns=headers)
         
-        # Explicit Timestamp column sorting (Newest to Oldest) using real datetime parsing
-        def parse_timestamp(val):
-            try:
-                dt = pd.to_datetime(str(val), errors='raise')
-                if pd.notnull(dt) and dt.year >= 2024:
-                    return dt
-            except Exception:
-                pass
+        # Robust timestamp extraction: searches entire row for a datetime string if col 0 fails
+        def extract_row_datetime(row):
+            for val in row:
+                try:
+                    dt = pd.to_datetime(str(val), errors='raise')
+                    if pd.notnull(dt) and dt.year >= 2024:
+                        return dt
+                except Exception:
+                    pass
             return pd.Timestamp.min
 
-        timestamps = []
-        for _, row in df.iterrows():
-            best_dt = pd.Timestamp.min
-            for cell in row:
-                dt = parse_timestamp(cell)
-                if dt > best_dt:
-                    best_dt = dt
-            timestamps.append(best_dt)
-
-        df['__real_timestamp'] = timestamps
-        df = df.sort_values(by='__real_timestamp', ascending=False, na_position='last').drop(columns=['__real_timestamp'])
+        try:
+            df['__parsed_ts'] = df.apply(extract_row_datetime, axis=1)
+            df = df.sort_values(by='__parsed_ts', ascending=False, na_position='last').drop(columns=['__parsed_ts'])
+        except Exception:
+            df = df.iloc[::-1].reset_index(drop=True)
+            
         return df.reset_index(drop=True)
     except Exception:
         return pd.DataFrame()
