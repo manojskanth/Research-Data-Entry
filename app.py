@@ -717,15 +717,15 @@ def render_parsed_doc_entry(entry):
         for url in entry.get("gen_links"):
             action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin-right: 10px; margin-top: 10px; display: inline-block;'>🌐 Official Journal Portal</a>")
 
-    rendered_buttons = f"<div style='margin-top: 14px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
+    rendered_buttons = f"<div style='margin-top: 12px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
     
     notes_html = ""
     if entry.get("notes"):
         valid_notes = [html.escape(str(n)) for n in entry["notes"] if str(n) != entry.get("title") and len(str(n)) > 5 and str(n) not in [entry.get('frequency'), entry.get('guidelines'), entry.get('apc')]]
         if valid_notes:
-            notes_html = f"<div style='color: #475569; font-size: 15px; line-height: 1.6; margin-top: 10px;'>{'<br>'.join(['• ' + vn for vn in valid_notes])}</div>"
+            notes_html = f"<div style='color: #475569; font-size: 18px; line-height: 1.6; margin-top: 10px;'>{'<br>'.join(['• ' + vn for vn in valid_notes])}</div>"
 
-    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 12px; padding: 22px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border-left: 5px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 20px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 13px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 12px 0; color: #1E293B; font-size: 18px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
+    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 12px; padding: 22px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border-left: 5px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 20px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 14px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 12px 0; color: #1E293B; font-size: 18px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_almanac_event_card(ev, is_highlighted=False):
@@ -736,15 +736,12 @@ def render_almanac_event_card(ev, is_highlighted=False):
 
     if is_highlighted:
         border_style = "border-left: 6px solid #16A34A; background: #F0FDF4;"
-        badge_tag = "<span style='background-color: #16A34A; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700;'>🚨 HAPPENING TODAY</span>"
     else:
-        days_away_txt = f"in {ev['days_away']} days" if ev['days_away'] > 1 else ("tomorrow" if ev['days_away'] == 1 else "today")
         border_style = "border-left: 5px solid #0284C7; background: #FFFFFF;"
-        badge_tag = f"<span style='background-color: #E0F2FE; color: #0369A1; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;'>📅 {days_away_txt}</span>"
 
-    desc_html = f"<p style='margin: 6px 0 0 0; color: #475569; font-size: 14px;'>{desc}</p>" if desc and desc != dept else ""
+    desc_html = f"<p style='margin: 6px 0 0 0; color: #475569; font-size: 16px;'>{desc}</p>" if desc and desc != dept else ""
 
-    card_html = f"""<div style="{border_style} border-radius: 10px; padding: 18px 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.04); border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">{badge_tag}<span style="color: #64748B; font-size: 13px; font-weight: 600;">{dept}</span></div><h4 style="margin: 0; color: #1E293B; font-size: 18px; font-weight: 700; line-height: 1.4;">{title}</h4><div style="margin-top: 6px; font-size: 14px; color: #334155; font-weight: 500;">🗓️ <b>Date:</b> {date_str}</div>{desc_html}</div>"""
+    card_html = f"""<div style="{border_style} border-radius: 10px; padding: 18px 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.04); border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="color: #64748B; font-size: 14px; font-weight: 600;">{dept}</span></div><h4 style="margin: 0; color: #1E293B; font-size: 18px; font-weight: 700; line-height: 1.4;">{title}</h4><div style="margin-top: 6px; font-size: 16px; color: #334155; font-weight: 500;">🗓️ <b>Date:</b> {date_str}</div>{desc_html}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
 # --- 5. STREAMLIT FRAMEWORK DESK ---
