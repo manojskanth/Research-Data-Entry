@@ -86,7 +86,7 @@ FACULTY_DIRECTORY = {
     "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
     "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
     "kirtibdnr@stmaryscollege.in": {"name": "Dr. Kirti", "secret_key": "kirti_pass"},
-    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikha_pass"},
+    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikhasharma_pass"},
     "himani@stmaryscollege.in": {"name": "Dr. Himani", "secret_key": "himani_pass"},
     "roy@stmaryscollege.in": {"name": "Mr. MSS Roy", "secret_key": "roy_pass"},
     "phebi@stmaryscollege.in": {"name": "Ms. Phebi", "secret_key": "phebi_pass"},
@@ -250,7 +250,7 @@ def download_drive_file_bytes(file_id, creds):
     except Exception:
         return None
 
-# --- 3. ROBUST ALMANAC PARSER & DATE WINDOW MATCHER ---
+# --- 3. UNIVERSAL ALMANAC PARSER & DATE MATCHER ---
 def parse_single_date(s):
     if not s:
         return None
@@ -340,28 +340,27 @@ def normalize_almanac_department(raw_text):
 
 def fetch_almanac_events(sheet_id, creds):
     """
-    Extracts all Almanac records via Sheets API with automatic CSV fallback,
-    parsing concatenated entries, dates, spans, and departments.
+    Extracts all events from the Almanac Sheet workbook across all tabs.
+    Evaluates Today's events and the next 14 days chronologically.
     """
     raw_rows = []
     
-    # 1. Google Sheets API
+    # 1. Try Google Sheets API with FORMATTED_VALUE option across all sheets
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
         spreadsheet_meta = sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
         sheets = spreadsheet_meta.get('sheets', [])
         
-        target_sheet_title = sheets[0]['properties']['title']
         for s in sheets:
-            if str(s['properties'].get('sheetId')) == str(ALMANAC_GID):
-                target_sheet_title = s['properties']['title']
-                break
-
-        res = sheets_service.spreadsheets().values().get(
-            spreadsheetId=sheet_id,
-            range=f"'{target_sheet_title}'!A1:Z1000"
-        ).execute()
-        raw_rows = res.get('values', [])
+            sheet_title = s['properties']['title']
+            res = sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=f"'{sheet_title}'!A1:Z1000",
+                valueRenderOption='FORMATTED_VALUE'
+            ).execute()
+            rows = res.get('values', [])
+            if rows:
+                raw_rows.extend(rows)
     except Exception:
         pass
 
@@ -391,7 +390,7 @@ def fetch_almanac_events(sheet_id, creds):
         if not row_str:
             continue
 
-        # Look for Date or Date Span in row
+        # Look for date pattern (e.g. 20/08/2026 or 21/08/2026 to 22/08/2026)
         date_pattern = r'([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}(?:\s*(?:to|\-)\s*[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})?)'
         dates_found = re.findall(date_pattern, row_str, re.IGNORECASE)
 
@@ -403,13 +402,10 @@ def fetch_almanac_events(sheet_id, creds):
             if not start_date:
                 continue
 
-            # Extract event title and department details from remaining cells
             cells = [str(c).strip() for c in r if str(c).strip()]
-            
             event_title = ""
             dept_hint = ""
 
-            # Check if cells are separated
             meaningful = [
                 c for c in cells 
                 if not re.search(r'^[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}', c) and 
@@ -420,7 +416,6 @@ def fetch_almanac_events(sheet_id, creds):
                 event_title = meaningful[0]
                 dept_hint = " ".join(meaningful[1:]) if len(meaningful) > 1 else ""
             else:
-                # Concatenated string line parsing
                 cleaned_line = row_str.replace(d_str, '').strip(' |')
                 cleaned_line = re.sub(r'^(?:mon|tue|wed|thu|fri|sat|sun)[a-z\/]*', '', cleaned_line, flags=re.IGNORECASE).strip(' |')
                 event_title = cleaned_line
@@ -453,6 +448,8 @@ def fetch_almanac_events(sheet_id, creds):
                 "days_away": days_diff
             })
 
+    # Sort all events chronologically by start date
+    events_list.sort(key=lambda x: x['start_date'])
     return events_list
 
 # --- 4. ROBUST WORD DOCUMENT PARSER ---
@@ -1027,7 +1024,7 @@ with tab_announcements:
     col_f1, col_f2 = st.columns([4, 1])
     with col_f1:
         filter_options = ["All Units / Campus Wide"] + DEPARTMENTS + COMMITTEES_CELLS_CLUBS
-        selected_unit = st.selectbox("🎯 Filter Events by Department / Club / Committee:", filter_options)
+        selected_unit = st.selectbox("🎯 Filter Research Announcements by Department / Club:", filter_options)
     with col_f2:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🔄 Refresh Bulletin", use_container_width=True):
@@ -1077,46 +1074,37 @@ with tab_announcements:
         if not parsed_docx_entries and not regular_research_files:
             st.info("No conference circulars, Word dossiers, or Call-for-Paper documents found in the Research Events folder.")
 
-    # RIGHT COLUMN: Almanac Events (Today & 2-Week Window) + Campus Activity Flyers
+    # RIGHT COLUMN: Almanac Events (All Events Scheduled for Today & Next 14 Days)
     with col_right:
-        st.markdown("""<div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4><p style="margin: 0; color: #475569; font-size: 12px;">Source: <code>2026-27 College Almanac (Rolling 14-Day Calendar)</code></p></div>""", unsafe_allow_html=True)
-
-        # Filter almanac events by selected unit
-        filtered_almanac = [
-            ev for ev in almanac_events
-            if selected_unit == "All Units / Campus Wide" or ev["dept"] == "All Units / Campus Wide" or selected_unit.lower() in ev["dept"].lower() or selected_unit.lower() in (ev["title"] + " " + ev["description"]).lower()
-        ]
+        st.markdown("""<div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4><p style="margin: 0; color: #475569; font-size: 12px;">Source: <code>2026-27 College Almanac (Complete 14-Day Schedule)</code></p></div>""", unsafe_allow_html=True)
 
         # 1. Today's Events (Ongoing)
-        today_events = [ev for ev in filtered_almanac if ev['is_today']]
+        today_events = [ev for ev in almanac_events if ev['is_today']]
         if today_events:
             st.markdown("##### 🚨 **Today's Events (Ongoing)**")
             for ev in today_events:
                 render_almanac_event_card(ev, is_highlighted=True)
             st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
 
-        # 2. Upcoming Events (Next 14 Days)
-        upcoming_2w_events = [ev for ev in filtered_almanac if ev['is_upcoming_2weeks']]
-        upcoming_2w_events.sort(key=lambda x: x['start_date'])
+        # 2. Upcoming Events (Next 14 Days) - ALL EVENTS INCLUDED
+        upcoming_2w_events = [ev for ev in almanac_events if ev['is_upcoming_2weeks']]
 
         if upcoming_2w_events:
             st.markdown(f"##### 📅 **Upcoming Activities (Next 2 Weeks: {len(upcoming_2w_events)} Events)**")
             for ev in upcoming_2w_events:
                 render_almanac_event_card(ev, is_highlighted=False)
         elif not today_events:
-            st.info(f"No Almanac events scheduled for '{selected_unit}' in the next 14 days.")
+            if not almanac_events:
+                st.warning("⚠️ Almanac Sheet could not be reached. Check that the service account or link sharing is active.")
+            else:
+                st.info("No Almanac events scheduled for the next 14 days.")
 
         # 3. Complementary Flyers / Posters from Drive
         if campus_files:
-            filtered_campus = [
-                f for f in campus_files 
-                if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in f.get("name", "").lower()
-            ]
-            if filtered_campus:
-                st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
-                st.markdown("##### 📁 **Event Posters & Circulars**")
-                for f in filtered_campus:
-                    render_bulletin_card(f, "Department / Club Event", bg_color="#16A34A")
+            st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
+            st.markdown("##### 📁 **Event Posters & Circulars**")
+            for f in campus_files:
+                render_bulletin_card(f, "Department / Club Event", bg_color="#16A34A")
 
     # Admin Control Panel
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
