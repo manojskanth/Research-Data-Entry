@@ -799,7 +799,7 @@ comm_df = fetch_sheet_records("Committees_Cells_Clubs", creds)
 
 # --- TAB NAVIGATION ---
 tab_gallery, tab_journals, tab_events, tab_explorer, tab_submit, tab_document, tab_admin = st.tabs([
-    "🌐 Research Portal Home",
+    "🌐 Research Hall of Fame",
     "📖 Journal Info",
     "📅 Events Calendar",
     "📋 Master Database Explorer",
