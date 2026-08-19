@@ -8,6 +8,7 @@ import json
 import base64
 import os
 import re
+import html
 import pandas as pd
 from docx import Document
 from docx.shared import Pt
@@ -254,7 +255,7 @@ def extract_announcements_from_docx(file_bytes):
         current_dept = "All Units / Campus Wide"
         current_category = "UGC CARE / INDEXED JOURNAL"
 
-        # Scan for Department context
+        # Scan for overall Category & Department context
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt:
@@ -286,7 +287,7 @@ def extract_announcements_from_docx(file_bytes):
             clean_t = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', raw_t).strip(' \t\n\r|•-:')
             return clean_t, list(set(urls))
 
-        # Process Tables
+        # Process Tables: one card per table row
         for table in doc.tables:
             if not table.rows or len(table.rows) < 2:
                 continue
@@ -307,6 +308,7 @@ def extract_announcements_from_docx(file_bytes):
                 row_urls = list(set(row_urls))
                 joined = " ".join(row_cells_data).lower()
 
+                # Skip header repetitions
                 if sum(1 for hw in ["journal name", "journal title", "frequency", "guidelines", "formatting brief", "s.no", "serial", "submission link", "fee", "apc"] if hw in joined) >= 2:
                     continue
 
@@ -681,53 +683,43 @@ def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_parsed_doc_entry(entry):
-    category_label = entry.get('category', 'CALL FOR PAPERS / JOURNAL')
+    category_label = html.escape(str(entry.get('category', 'CALL FOR PAPERS / JOURNAL')))
+    title_text = html.escape(str(entry.get('title', 'Research Announcement')))
+    dept_text = html.escape(str(entry.get('dept', 'Campus Wide')))
     
-    # Render Badges (Clean, Closed Tags)
+    # 1. Build Badges
     badges_list = []
     if entry.get('frequency'):
-        badges_list.append(f"<span style='background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>🔄 <b>Cycle:</b> {entry.get('frequency')}</span>")
+        badges_list.append(f"<span style='background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>🔄 <b>Cycle:</b> {html.escape(str(entry['frequency']))}</span>")
     if entry.get('apc'):
-        badges_list.append(f"<span style='background-color: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>💰 <b>APC:</b> {entry.get('apc')}</span>")
+        badges_list.append(f"<span style='background-color: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>💰 <b>APC:</b> {html.escape(str(entry['apc']))}</span>")
     if entry.get('guidelines'):
-        badges_list.append(f"<span style='background-color: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>📝 <b>Length / Format:</b> {entry.get('guidelines')}</span>")
+        badges_list.append(f"<span style='background-color: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>📝 <b>Length / Format:</b> {html.escape(str(entry['guidelines']))}</span>")
     if entry.get('deadline'):
-        badges_list.append(f"<span style='background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>⏰ <b>Deadline:</b> {entry.get('deadline')}</span>")
+        badges_list.append(f"<span style='background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>⏰ <b>Deadline:</b> {html.escape(str(entry['deadline']))}</span>")
 
     rendered_badges = f"<div style='margin-bottom: 8px;'>{''.join(badges_list)}</div>" if badges_list else ""
 
-    # Render Action Buttons
+    # 2. Build Buttons
     action_buttons = []
     if entry.get("reg_links"):
         for url in entry.get("reg_links"):
-            action_buttons.append(f"<a href='{url}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 5px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 6px; display: inline-block;'>🎟️ Author Guidelines / Submit</a>")
+            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 5px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 6px; display: inline-block;'>🎟️ Author Guidelines / Submit</a>")
 
     if entry.get("gen_links"):
         for url in entry.get("gen_links"):
-            action_buttons.append(f"<a href='{url}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 5px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 6px; display: inline-block;'>🌐 Official Journal Portal</a>")
+            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 5px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 6px; display: inline-block;'>🌐 Official Journal Portal</a>")
 
     rendered_buttons = f"<div style='margin-top: 10px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
     
+    # 3. Build Notes
     notes_html = ""
     if entry.get("notes"):
-        valid_notes = [n for n in entry["notes"] if n != entry.get("title") and len(n) > 5 and n not in [entry.get('frequency'), entry.get('guidelines'), entry.get('apc')]]
+        valid_notes = [html.escape(str(n)) for n in entry["notes"] if str(n) != entry.get("title") and len(str(n)) > 5 and str(n) not in [entry.get('frequency'), entry.get('guidelines'), entry.get('apc')]]
         if valid_notes:
             notes_html = f"<div style='color: #475569; font-size: 12.5px; line-height: 1.5; margin-top: 6px;'>{'<br>'.join(['• ' + vn for vn in valid_notes])}</div>"
 
-    card_html = f"""
-    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;">
-                {category_label}
-            </span>
-            <span style="color: #64748B; font-size: 11px; font-weight: 600;">{entry.get('dept')}</span>
-        </div>
-        <h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700; line-height: 1.4;">{entry.get('title')}</h4>
-        {rendered_badges}
-        {notes_html}
-        {rendered_buttons}
-    </div>
-    """
+    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 11px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
 # --- 6. STREAMLIT FRAMEWORK DESK ---
@@ -1204,7 +1196,7 @@ with tab_document:
             target_folder = DEPARTMENT_FOLDERS.get(view_focus, COMMITTEE_FOLDER_ID) if view_focus != "Committees / Cells / Clubs" else COMMITTEE_FOLDER_ID
             upload_file_to_drive(docx_bytes, file_name_string, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", [target_folder], creds)
             
-            st.success(f"🎯 Document synchronized into your Drive repository folder automatically!")
+            st.success("🎯 Document synchronized into your Drive repository folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
 # --- 8. ADMIN CONTROL ---
