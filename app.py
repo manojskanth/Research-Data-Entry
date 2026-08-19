@@ -11,13 +11,13 @@ import re
 import pandas as pd
 from docx import Document
 from docx.shared import Pt
+from docx.oxml.ns import qn
 
 # --- 1. CORE SYSTEM CONFIGURATION ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 
-# Dedicated Drive Folder Repositories
-RESEARCH_EVENTS_FOLDER_ID = "1UZxcyKw3RgmjyNV7eyIgwhzOkovB5fhF"  # Upcoming Research Events (Conferences, CFP, Journals)
-CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS" # Upcoming College Events (Dept, Clubs, Sports)
+RESEARCH_EVENTS_FOLDER_ID = "1UZxcyKw3RgmjyNV7eyIgwhzOkovB5fhF"
+CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS"
 COMMITTEE_FOLDER_ID = "1pzrbGsViKtzsQYBPt-p9ZqQ5WXbzdHcW"
 
 DEPARTMENTS = [
@@ -203,7 +203,6 @@ def upload_file_to_drive(file_bytes, file_name, mime_type, parent_ids, creds):
         return "Pending Folder Permissions Link"
 
 def fetch_drive_folder_items(folder_id, creds):
-    """Recursively fetches all files within the folder and any nested subfolders."""
     try:
         drive_service = build('drive', 'v3', credentials=creds)
         query = f"'{folder_id}' in parents and trashed = false"
@@ -249,16 +248,18 @@ def download_drive_file_bytes(file_id, creds):
 
 def extract_announcements_from_docx(file_bytes):
     """
-    Schema-aware 2D Word table parser.
-    Converts entire table rows into individual cards and suppresses fragment cards.
+    Robust table parser:
+    1. Extracts hidden embedded XML hyperlinks in cells.
+    2. Builds one record per table row (with title, metadata, and buttons).
+    3. Rejects fragments and isolated cell lines.
     """
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
         current_dept = "All Units / Campus Wide"
-        current_category = "CALL FOR PAPERS / JOURNAL"
+        current_category = "UGC CARE / INDEXED JOURNAL"
 
-        # 1. Scan for overall Department context
+        # 1. Detect Category Banner & Department from Headings
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt:
@@ -273,172 +274,124 @@ def extract_announcements_from_docx(file_bytes):
                         break
 
             if any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "upcoming conferences"]):
-                current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt.strip().upper()
+                current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt[:40].strip().upper()
+
+        # Helper function to extract text and embedded links from a table cell XML
+        def get_cell_data(cell):
+            text = cell.text.strip()
+            urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', text)
+            
+            # Extract underlying XML hyperlink target if present
+            try:
+                for rel in cell._tc.xpath('.//w:hyperlink'):
+                    r_id = rel.get(qn('r:id'))
+                    if r_id and r_id in cell.part.rels:
+                        target = cell.part.rels[r_id].target_ref
+                        if target and target.startswith("http"):
+                            urls.append(target)
+            except Exception:
+                pass
+                
+            clean_text = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', text).strip(' \t\n\r|•-:')
+            return clean_text, list(set(urls))
 
         # 2. Parse Word Document Tables Row-By-Row
         for table in doc.tables:
             if not table.rows or len(table.rows) < 2:
                 continue
 
-            # Read and map header row schema
-            header_cells = [c.text.strip().lower() for c in table.rows[0].cells]
-            
-            # Map column indexes
-            title_col = -1
-            freq_col = -1
-            guide_col = -1
-            link_col = -1
-            deadline_col = -1
+            # Process data rows (skip header row 0)
+            for row_idx, row in enumerate(table.rows):
+                if row_idx == 0:
+                    continue  # Skip table header row
 
-            for idx, h_text in enumerate(header_cells):
-                if any(k in h_text for k in ["journal", "title", "name", "conference", "event", "paper"]):
-                    if title_col == -1: title_col = idx
-                elif any(k in h_text for k in ["frequency", "cycle", "periodicity", "issues"]):
-                    freq_col = idx
-                elif any(k in h_text for k in ["formatting", "guideline", "brief", "word", "length", "format"]):
-                    guide_col = idx
-                elif any(k in h_text for k in ["link", "url", "portal", "website", "submission"]):
-                    link_col = idx
-                elif any(k in h_text for k in ["deadline", "date", "due"]):
-                    deadline_col = idx
-
-            # Process all data rows (starting from row index 1)
-            for row in table.rows[1:]:
-                raw_row = [c.text.strip() for c in row.cells]
+                row_texts = []
+                row_urls = []
                 
-                # Check for merged cells row
-                unique_row = []
-                for c in raw_row:
-                    if not unique_row or c != unique_row[-1]:
-                        unique_row.append(c)
+                for cell in row.cells:
+                    c_txt, c_urls = get_cell_data(cell)
+                    if c_txt and c_txt.lower() not in ["data point not found", "n/a", "na", "-", "|", "nil"]:
+                        # Avoid duplicates from horizontally merged cells
+                        if not row_texts or c_txt != row_texts[-1]:
+                            row_texts.append(c_txt)
+                    row_urls.extend(c_urls)
 
-                # Skip blank rows or sub-headers
-                if not unique_row or all(c.lower() in ["", "data point not found", "n/a", "na", "-", "|"] for c in unique_row):
+                row_urls = list(set(row_urls))
+                
+                # Check for table header repeat
+                joined_text = " ".join(row_texts).lower()
+                if sum(1 for hw in ["journal name", "journal title", "frequency", "guidelines", "formatting brief", "s.no", "serial", "link"] if hw in joined_text) >= 2:
                     continue
 
-                # Identify Title
-                card_title = ""
-                if title_col != -1 and title_col < len(raw_row) and len(raw_row[title_col]) > 2 and raw_row[title_col].lower() not in ["data point not found", "n/a", "-"]:
-                    card_title = raw_row[title_col]
-                else:
-                    # Fallback: Pick first non-numeric cell of substance
-                    for cell in unique_row:
-                        if len(cell) > 3 and not cell.isdigit() and not cell.startswith("http") and cell.lower() not in ["data point not found", "n/a", "-", "|", "continuous", "bi-annual"]:
-                            card_title = cell
-                            break
+                if not row_texts and not row_urls:
+                    continue
 
-                # Extract URLs from entire row
-                all_row_urls = []
-                for cell in unique_row:
-                    all_row_urls.extend(re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', cell))
-
-                # Identify Frequency
+                # Identify fields
+                journal_title = ""
                 frequency_val = ""
-                if freq_col != -1 and freq_col < len(raw_row):
-                    f_cand = raw_row[freq_col]
-                    if f_cand.lower() not in ["data point not found", "n/a", "-", "", "frequency"]:
-                        frequency_val = f_cand
-                if not frequency_val:
-                    for cell in unique_row:
-                        if any(k in cell.lower() for k in ["continuous", "bi-annual", "biannual", "annual", "quarterly", "monthly", "year-round", "open year-round", "triannual"]):
-                            frequency_val = cell
-                            break
+                guidelines_val = ""
+                deadlines_val = ""
+                other_details = []
 
-                # Identify Manuscript Guidelines
-                guideline_val = ""
-                if guide_col != -1 and guide_col < len(raw_row):
-                    g_cand = raw_row[guide_col]
-                    if g_cand.lower() not in ["data point not found", "n/a", "-", "", "formatting brief", "guidelines"]:
-                        guideline_val = g_cand
-                if not guideline_val:
-                    for cell in unique_row:
-                        if any(k in cell.lower() for k in ["word", "spacing", "tnr", "font", "apa", "ieee", "pages", "template"]) and len(cell) > 8:
-                            guideline_val = cell
-                            break
+                for item in row_texts:
+                    item_low = item.lower()
+                    if item_low in ["formatting brief", "frequency", "guidelines", "submission link"]:
+                        continue
 
-                # Identify Deadlines
-                deadline_val = ""
-                if deadline_col != -1 and deadline_col < len(raw_row):
-                    d_cand = raw_row[deadline_col]
-                    if d_cand.lower() not in ["data point not found", "n/a", "-", ""]:
-                        deadline_val = d_cand
-                if not deadline_val:
-                    for cell in unique_row:
-                        dl_match = re.search(r'(?:deadline|submission|last date|due|register by)[\s\:\-]+([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]+,?\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})', cell, re.IGNORECASE)
-                        if dl_match:
-                            deadline_val = dl_match.group(0).strip()
-                            break
-
-                # If no valid title could be resolved from text, derive from domain
-                if not card_title:
-                    if all_row_urls:
-                        clean_dom = re.sub(r'^https?:\/\/(www\.)?', '', all_row_urls[0]).split('/')[0]
-                        card_title = f"Journal / CFP Portal ({clean_dom})"
+                    if any(k in item_low for k in ["continuous", "bi-annual", "biannual", "annual", "quarterly", "monthly", "year-round", "open year-round", "triannual", "half-yearly", "issues/year"]):
+                        frequency_val = item
+                    elif any(k in item_low for k in ["word", "spacing", "tnr", "font", "apa", "ieee", "mla", "pages", "template", "manuscript"]) and len(item) > 8:
+                        guidelines_val = item
+                    elif any(k in item_low for k in ["deadline", "due date", "last date", "submission date", "submit by", "register by"]):
+                        deadlines_val = item
                     else:
-                        continue  # Skip row - not a valid entry
+                        if not journal_title and len(item) > 2 and not item.isdigit():
+                            journal_title = item
+                        else:
+                            other_details.append(item)
 
-                # Build cleanly formatted details box
-                content_lines = []
+                # Reject fragments: a valid journal card MUST have a valid title
+                if not journal_title:
+                    if row_urls:
+                        clean_dom = re.sub(r'^https?:\/\/(www\.)?', '', row_urls[0]).split('/')[0]
+                        journal_title = f"Journal Publication Portal ({clean_dom})"
+                    else:
+                        continue  # Skip orphan fragment
+
+                # Assemble Details Body
+                body_parts = []
                 if frequency_val:
-                    content_lines.append(f"🔄 **Publication Frequency / Cycle:** {frequency_val}")
-                if guideline_val and guideline_val.lower() != "formatting brief":
-                    content_lines.append(f"📝 **Manuscript Guidelines & Length:** {guideline_val}")
-                if deadline_val:
-                    content_lines.append(f"⏰ **Important Dates:** {deadline_val}")
+                    body_parts.append(f"🔄 **Publication Frequency / Cycle:** {frequency_val}")
+                if guidelines_val:
+                    body_parts.append(f"📝 **Manuscript Guidelines & Length:** {guidelines_val}")
+                if deadlines_val:
+                    body_parts.append(f"⏰ **Important Dates:** {deadlines_val}")
+                for note in other_details:
+                    if note not in [journal_title, frequency_val, guidelines_val, deadlines_val] and note.lower() != "formatting brief":
+                        body_parts.append(f"• {note}")
 
-                # Collect other substantive details
-                for cell in unique_row:
-                    cleaned_c = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', cell).strip(' \t\n\r|•-:')
-                    if cleaned_c and cleaned_c not in [card_title, frequency_val, guideline_val, deadline_val] and cleaned_c.lower() not in ["data point not found", "n/a", "-", "formatting brief", "frequency"]:
-                        if len(cleaned_c) > 3 and not cleaned_c.isdigit():
-                            content_lines.append(f"• {cleaned_c}")
-
-                final_content = "\n".join(content_lines) if content_lines else "• Open for continuous submission and peer review."
+                final_content = "\n".join(body_parts) if body_parts else "• Open for continuous peer review and publication."
 
                 # Separate Action Links
-                reg_links = [u if u.startswith("http") else f"https://{u}" for u in all_row_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register", "form", "apply", "ticket", "forms.gle"])]
-                gen_links = [u if u.startswith("http") else f"https://{u}" for u in all_row_urls if (u if u.startswith("http") else f"https://{u}") not in reg_links]
+                reg_links = [u if u.startswith("http") else f"https://{u}" for u in row_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register", "form", "apply", "ticket", "forms.gle"])]
+                gen_links = [u if u.startswith("http") else f"https://{u}" for u in row_urls if (u if u.startswith("http") else f"https://{u}") not in reg_links]
 
                 # Match Department
                 dept = current_dept
                 for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
-                    if d.lower() in (card_title + " " + final_content).lower():
+                    if d.lower() in (journal_title + " " + final_content).lower():
                         dept = d
                         break
 
                 entries.append({
-                    "title": card_title,
+                    "title": journal_title,
                     "content": final_content,
                     "dept": dept,
                     "category": current_category,
-                    "reg_deadline": deadline_val if "register" in deadline_val.lower() else "",
-                    "sub_deadline": deadline_val if "register" not in deadline_val.lower() and deadline_val else "",
+                    "reg_deadline": deadlines_val if "register" in deadlines_val.lower() else "",
+                    "sub_deadline": deadlines_val if "register" not in deadlines_val.lower() and deadlines_val else "",
                     "reg_links": list(set(reg_links)),
                     "gen_links": list(set(gen_links))
-                })
-
-        # 3. Substantive Standalone Paragraphs ONLY
-        for p in doc.paragraphs:
-            txt = p.text.strip()
-            if not txt or len(txt) < 80:
-                continue
-            if any(k in txt.lower() for k in ["updated on", "compiled by", "ugc care listed", "scopus", "disclaimer", "formatting brief", "table of contents", "st. mary"]):
-                continue
-
-            urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', txt)
-            cleaned_p = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', txt).strip()
-            
-            if cleaned_p and len(cleaned_p) >= 60:
-                p_title = cleaned_p[:70] + "..." if len(cleaned_p) > 70 else cleaned_p
-                entries.append({
-                    "title": p_title,
-                    "content": cleaned_p,
-                    "dept": current_dept,
-                    "category": current_category,
-                    "reg_deadline": "",
-                    "sub_deadline": "",
-                    "reg_links": [u if u.startswith("http") else f"https://{u}" for u in urls if any(k in u.lower() for k in ["register", "submit", "guide"])],
-                    "gen_links": [u if u.startswith("http") else f"https://{u}" for u in urls if not any(k in u.lower() for k in ["register", "submit", "guide"])]
                 })
 
     except Exception:
@@ -934,7 +887,6 @@ with tab_announcements:
         if st.button("🔄 Refresh Bulletin", use_container_width=True):
             st.rerun()
 
-    # Fetch Files from Designated Drive Folders
     with st.spinner("Accessing Google Drive folders and extracting announcements..."):
         research_files = fetch_drive_folder_items(RESEARCH_EVENTS_FOLDER_ID, creds)
         campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
@@ -963,7 +915,6 @@ with tab_announcements:
         </div>
         """, unsafe_allow_html=True)
 
-        # 1. Render extracted entries from Word docs
         if parsed_docx_entries:
             matching_docx_entries = [
                 e for e in parsed_docx_entries 
@@ -972,7 +923,6 @@ with tab_announcements:
             for entry in matching_docx_entries:
                 render_parsed_doc_entry(entry)
 
-        # 2. Render standard flyer & PDF cards
         if regular_research_files:
             filtered_research = [
                 f for f in regular_research_files 
