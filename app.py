@@ -248,8 +248,9 @@ def download_drive_file_bytes(file_id, creds):
     except Exception:
         return None
 
-# --- 3. ALMANAC MASTER CALENDAR ENGINE ---
+# --- 3. AUTO-UPDATING ALMANAC ENGINE ---
 MASTER_ALMANAC_DATA = [
+    ("19/08/2026", "19/08/2026", "\"Biopreuners challenge\" - Transforming ideas to enterprise", "Department of Sciences", "Sciences"),
     ("20/08/2026", "20/08/2026", "Staff Colloquium", "Commerce", "Commerce"),
     ("20/08/2026", "20/08/2026", "ISR activity", "Department of Sciences", "Sciences"),
     ("21/08/2026", "21/08/2026", "Field Visit in Mass Communication", "Department of Social Sciences & Humanities", "Social Sciences & Humanities"),
@@ -281,6 +282,9 @@ def parse_single_date(s):
     return None
 
 def fetch_almanac_events(file_id, creds):
+    """
+    Evaluates events in real-time based on today's calendar date automatically.
+    """
     today = datetime.date.today()
     events_list = []
 
