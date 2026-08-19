@@ -16,7 +16,8 @@ from docx.oxml.ns import qn
 
 # --- 1. CORE SYSTEM CONFIGURATION ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
-ALMANAC_SHEET_ID = "1ByouwZVNzQRtQsFLZLR9wppXKwakbczR"  # 2026-27 College Almanac Sheet
+ALMANAC_SHEET_ID = "1ByouwZVNzQRtQsFLZLR9wppXKwakbczR"
+ALMANAC_GID = "771144646"  # Specific tab GID for 2026-27 Almanac
 
 RESEARCH_EVENTS_FOLDER_ID = "1UZxcyKw3RgmjyNV7eyIgwhzOkovB5fhF"
 CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS"
@@ -250,24 +251,28 @@ def download_drive_file_bytes(file_id, creds):
 
 # --- 3. ALMANAC CALENDAR PARSER (TODAY & ROLLING 2-WEEK WINDOW) ---
 def parse_flexible_date(date_str):
-    """Parses various date string formats into datetime.date object."""
     if not date_str:
         return None
     s = str(date_str).strip()
+    # Strip day names (e.g. "Wed, ", "Wednesday ")
+    s = re.sub(r'^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*[\,\s\-]*', '', s, flags=re.IGNORECASE).strip()
     
-    # Try standard date patterns
+    # Strip ordinal suffixes (1st, 2nd, 3rd, 19th)
+    s_clean = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', s, flags=re.IGNORECASE)
+
     patterns = [
-        r"%Y-%m-%d", r"%d/%m/%Y", r"%d-%m-%Y", r"%d.%m.%Y",
-        r"%d %b %Y", r"%d %B %Y", r"%b %d, %Y", r"%B %d, %Y",
-        r"%d-%b-%Y", r"%d-%b-%y", r"%d/%m/%y"
+        r"%d/%m/%Y", r"%d-%m-%Y", r"%Y-%m-%d", r"%d.%m.%Y",
+        r"%d %B %Y", r"%d %b %Y", r"%B %d, %Y", r"%b %d, %Y",
+        r"%d-%B-%Y", r"%d-%b-%Y", r"%d-%B-%y", r"%d-%b-%y",
+        r"%d/%m/%y", r"%d-%m-%y"
     ]
     for p in patterns:
         try:
-            return datetime.datetime.strptime(s, p).date()
+            return datetime.datetime.strptime(s_clean, p).date()
         except Exception:
             pass
 
-    # Regex search inside string (e.g. "19th Aug 2026" or "19-08-2026")
+    # Regex search inside string for DD/MM/YYYY or DD-MM-YYYY
     m = re.search(r'([0-9]{1,2})[\/\-\.]([0-9]{1,2})[\/\-\.]([0-9]{2,4})', s)
     if m:
         d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
@@ -278,64 +283,132 @@ def parse_flexible_date(date_str):
             pass
     return None
 
+def normalize_almanac_department(raw_text):
+    """Maps Almanac organizer labels to system standard department & club names."""
+    if not raw_text:
+        return "All Units / Campus Wide"
+    txt = str(raw_text).strip()
+    txt_lower = txt.lower()
+
+    # Department mappings
+    if any(k in txt_lower for k in ["business management", "management"]):
+        return "Management"
+    elif "commerce" in txt_lower:
+        return "Commerce"
+    elif "science" in txt_lower:
+        return "Sciences"
+    elif any(k in txt_lower for k in ["english", "language", "hindi", "sanskrit", "french"]):
+        return "English & Languages"
+    elif any(k in txt_lower for k in ["social science", "humanities", "psychology", "journalism", "political"]):
+        return "Social Sciences & Humanities"
+    elif any(k in txt_lower for k in ["physical education", "sports", "gymkhana"]):
+        return "Physical Education"
+    elif any(k in txt_lower for k in ["research", "innovation", "iic", "incubation"]):
+        return "Research & Innovation"
+    elif "iqac" in txt_lower:
+        return "IQAC"
+    
+    # Committee & Club mappings
+    elif "alumni" in txt_lower:
+        return "Alumni"
+    elif "library" in txt_lower:
+        return "Library"
+    elif "placement" in txt_lower:
+        return "Placement"
+    elif "women empowerment" in txt_lower:
+        return "Women Empowerment"
+    elif "internal complaints" in txt_lower or "icc" in txt_lower:
+        return "Internal Complaints"
+    elif "grievance" in txt_lower:
+        return "Grievance Redressal"
+    elif "anti-ragging" in txt_lower:
+        return "Anti-Ragging"
+    elif "scholarship" in txt_lower:
+        return "Scholarship"
+    elif any(k in txt_lower for k in ["nss", "ncc", "club", "cultural", "student activity", "rotaract", "red cross"]):
+        return "Student Activity Clubs"
+
+    for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
+        if d.lower() in txt_lower:
+            return d
+
+    return "All Units / Campus Wide"
+
 def fetch_almanac_events(sheet_id, creds):
     """
-    Extracts events from the College Almanac Google Sheet.
+    Extracts events from the Almanac Sheet (including specific gid 771144646).
     Identifies 'Today's Events' and 'Upcoming Events (Next 14 Days)'.
     """
     events_list = []
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
+        spreadsheet_meta = sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
         
-        # Read the first available sheet tab
-        meta = sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        sheet_title = meta['sheets'][0]['properties']['title']
-        
+        target_sheet_title = spreadsheet_meta['sheets'][0]['properties']['title']
+        for s in spreadsheet_meta.get('sheets', []):
+            if str(s['properties'].get('sheetId')) == str(ALMANAC_GID):
+                target_sheet_title = s['properties']['title']
+                break
+
         res = sheets_service.spreadsheets().values().get(
             spreadsheetId=sheet_id,
-            range=f"'{sheet_title}'!A1:Z1000"
+            range=f"'{target_sheet_title}'!A1:Z2000"
         ).execute()
         rows = res.get('values', [])
         
         if not rows or len(rows) < 2:
             return []
 
-        header = [str(c).strip().lower() for c in rows[0]]
+        # Find header index row
+        header_row_idx = 0
+        for idx, r in enumerate(rows[:5]):
+            r_str = " ".join([str(c).lower() for c in r])
+            if any(k in r_str for k in ["date", "event", "department", "particulars", "activity", "day"]):
+                header_row_idx = idx
+                break
+
+        headers = [str(c).strip().lower() for c in rows[header_row_idx]]
         
-        # Map columns dynamically
-        date_idx = -1
-        event_idx = -1
-        dept_idx = -1
-        desc_idx = -1
+        date_col = -1
+        event_col = -1
+        dept_col = -1
+        desc_col = -1
 
-        for i, h in enumerate(header):
-            if any(k in h for k in ["date", "day", "time", "schedule"]):
-                if date_idx == -1: date_idx = i
-            elif any(k in h for k in ["event", "activity", "title", "particular", "program", "name"]):
-                if event_idx == -1: event_idx = i
-            elif any(k in h for k in ["department", "club", "cell", "committee", "organizer", "in-charge"]):
-                dept_idx = i
-            elif any(k in h for k in ["description", "remark", "detail", "venue", "target"]):
-                desc_idx = i
+        for i, h in enumerate(headers):
+            if any(k in h for k in ["date", "day", "schedule", "time"]):
+                if date_col == -1: date_col = i
+            elif any(k in h for k in ["event", "activity", "particular", "program", "name", "title"]):
+                if event_col == -1: event_col = i
+            elif any(k in h for k in ["department", "club", "cell", "committee", "organizer", "in-charge", "unit"]):
+                dept_col = i
+            elif any(k in h for k in ["description", "remark", "detail", "venue", "target", "objective"]):
+                desc_col = i
 
-        if date_idx == -1: date_idx = 0
-        if event_idx == -1: event_idx = 1 if len(header) > 1 else 0
+        if date_col == -1: date_col = 0
+        if event_col == -1: event_col = 1 if len(headers) > 1 else 0
 
         today = datetime.date.today()
 
-        for r in rows[1:]:
-            if not r or len(r) <= date_idx:
+        for r in rows[header_row_idx + 1:]:
+            if not r:
                 continue
 
-            raw_date_str = str(r[date_idx]).strip()
-            raw_event_str = str(r[event_idx]).strip() if len(r) > event_idx else ""
-            raw_dept_str = str(r[dept_idx]).strip() if (dept_idx != -1 and len(r) > dept_idx) else "All Units / Campus Wide"
-            raw_desc_str = str(r[desc_idx]).strip() if (desc_idx != -1 and len(r) > desc_idx) else ""
+            raw_date_str = str(r[date_col]).strip() if len(r) > date_col else ""
+            raw_event_str = str(r[event_col]).strip() if len(r) > event_col else ""
+            raw_dept_str = str(r[dept_col]).strip() if (dept_col != -1 and len(r) > dept_col) else ""
+            raw_desc_str = str(r[desc_col]).strip() if (desc_col != -1 and len(r) > desc_col) else ""
 
-            if not raw_event_str or raw_event_str.lower() in ["nil", "none", "-", "holiday", "sunday"]:
+            # Check if event text was in a neighboring cell
+            if not raw_event_str and len(r) > 1:
+                for c_val in r[1:]:
+                    if str(c_val).strip() and len(str(c_val).strip()) > 3:
+                        raw_event_str = str(c_val).strip()
+                        break
+
+            if not raw_event_str or raw_event_str.lower() in ["nil", "none", "-", "sunday", "holiday", "event", "particulars"]:
                 continue
 
-            # Check for date span (e.g., "19/08/2026 to 21/08/2026")
+            # Parse start & end dates
             start_date = None
             end_date = None
 
@@ -350,16 +423,21 @@ def fetch_almanac_events(sheet_id, creds):
                 end_date = start_date
 
             if not start_date:
+                # Search all cells in row for a date string
+                for cell_item in r:
+                    cand = parse_flexible_date(cell_item)
+                    if cand:
+                        start_date = cand
+                        end_date = cand
+                        raw_date_str = str(cell_item)
+                        break
+
+            if not start_date:
                 continue
 
-            # Auto-tag department if mentioned in event text
-            matched_dept = raw_dept_str
-            for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
-                if d.lower() in (raw_event_str + " " + raw_dept_str + " " + raw_desc_str).lower():
-                    matched_dept = d
-                    break
+            matched_dept = normalize_almanac_department(raw_dept_str + " " + raw_event_str)
 
-            # Check Status relative to Today
+            # Evaluate Today & Rolling 14-day window
             is_today = False
             is_upcoming_2weeks = False
             days_diff = (start_date - today).days
@@ -373,7 +451,7 @@ def fetch_almanac_events(sheet_id, creds):
 
             events_list.append({
                 "title": raw_event_str,
-                "date_display": raw_date_str,
+                "date_display": raw_date_str if raw_date_str else start_date.strftime("%d %b %Y"),
                 "start_date": start_date,
                 "end_date": end_date,
                 "dept": matched_dept,
