@@ -519,10 +519,20 @@ def fetch_sheet_records(sheet_name, creds):
         data = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows[1:]]
         df = pd.DataFrame(data, columns=headers)
         
-        # Sort strictly by the timestamp column (assumed to be index 0) converted to datetime descending
+        # Robust timestamp extraction: searches entire row for a datetime string if col 0 fails
+        def extract_row_datetime(row):
+            for val in row:
+                try:
+                    dt = pd.to_datetime(str(val), errors='raise')
+                    if pd.notnull(dt) and dt.year >= 2024:
+                        return dt
+                except Exception:
+                    pass
+            return pd.Timestamp.min
+
         try:
-            df['__parsed_timestamp'] = pd.to_datetime(df.iloc[:, 0], errors='coerce')
-            df = df.sort_values(by='__parsed_timestamp', ascending=False, na_position='last').drop(columns=['__parsed_timestamp'])
+            df['__parsed_ts'] = df.apply(extract_row_datetime, axis=1)
+            df = df.sort_values(by='__parsed_ts', ascending=False, na_position='last').drop(columns=['__parsed_ts'])
         except Exception:
             df = df.iloc[::-1].reset_index(drop=True)
             
