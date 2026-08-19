@@ -808,7 +808,7 @@ tab_gallery, tab_journals, tab_events, tab_explorer, tab_submit, tab_document, t
     "🔒 Admin Control"
 ])
 
-# --- TAB 1: RESEARCH PORTAL HOME ---
+# --- TAB 1: RESEARCH HALL OF FAME ---
 with tab_gallery:
     def get_impact_rank(row):
         pub_type = str(row.iloc[2]).strip().lower() if len(row) > 2 else ""
@@ -824,12 +824,7 @@ with tab_gallery:
     valid_publications = []
     if not res_df.empty and len(res_df) > 0:
         for _, r in res_df.iterrows():
-            pub_type = str(r.iloc[2]).strip() if len(row := r) > 2 else ""
-            indexing = str(r.iloc[3]).strip() if len(r) > 3 else ""
-            is_full_book = "full book" in pub_type.lower()
-            is_valid_index = indexing.upper() not in ["NA", "N/A", "NONE", ""] and indexing.strip() != ""
-            if is_full_book or is_valid_index:
-                valid_publications.append(r)
+            valid_publications.append(r)
 
     if valid_publications:
         ticker_items = []
@@ -873,7 +868,7 @@ with tab_gallery:
             with cols[i % 3]:
                 render_publication_achiever_card(author, dept, title, journal, display_badge, link_url)
     else:
-        st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
+        st.info("No research records found. Add your publications under the 'Enter Research Data' tab!")
 
 # --- TAB 2: JOURNAL INFO ---
 with tab_journals:
