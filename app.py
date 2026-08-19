@@ -16,6 +16,7 @@ from docx.oxml.ns import qn
 
 # --- 1. CORE SYSTEM CONFIGURATION ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
+ALMANAC_SHEET_ID = "1ByouwZVNzQRtQsFLZLR9wppXKwakbczR"  # 2026-27 College Almanac Sheet
 
 RESEARCH_EVENTS_FOLDER_ID = "1UZxcyKw3RgmjyNV7eyIgwhzOkovB5fhF"
 CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS"
@@ -247,7 +248,147 @@ def download_drive_file_bytes(file_id, creds):
     except Exception:
         return None
 
-# --- 3. ROBUST WORD DOCUMENT PARSER ---
+# --- 3. ALMANAC CALENDAR PARSER (TODAY & ROLLING 2-WEEK WINDOW) ---
+def parse_flexible_date(date_str):
+    """Parses various date string formats into datetime.date object."""
+    if not date_str:
+        return None
+    s = str(date_str).strip()
+    
+    # Try standard date patterns
+    patterns = [
+        r"%Y-%m-%d", r"%d/%m/%Y", r"%d-%m-%Y", r"%d.%m.%Y",
+        r"%d %b %Y", r"%d %B %Y", r"%b %d, %Y", r"%B %d, %Y",
+        r"%d-%b-%Y", r"%d-%b-%y", r"%d/%m/%y"
+    ]
+    for p in patterns:
+        try:
+            return datetime.datetime.strptime(s, p).date()
+        except Exception:
+            pass
+
+    # Regex search inside string (e.g. "19th Aug 2026" or "19-08-2026")
+    m = re.search(r'([0-9]{1,2})[\/\-\.]([0-9]{1,2})[\/\-\.]([0-9]{2,4})', s)
+    if m:
+        d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if y < 100: y += 2000
+        try:
+            return datetime.date(y, mth, d)
+        except Exception:
+            pass
+    return None
+
+def fetch_almanac_events(sheet_id, creds):
+    """
+    Extracts events from the College Almanac Google Sheet.
+    Identifies 'Today's Events' and 'Upcoming Events (Next 14 Days)'.
+    """
+    events_list = []
+    try:
+        sheets_service = build('sheets', 'v4', credentials=creds)
+        
+        # Read the first available sheet tab
+        meta = sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        sheet_title = meta['sheets'][0]['properties']['title']
+        
+        res = sheets_service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"'{sheet_title}'!A1:Z1000"
+        ).execute()
+        rows = res.get('values', [])
+        
+        if not rows or len(rows) < 2:
+            return []
+
+        header = [str(c).strip().lower() for c in rows[0]]
+        
+        # Map columns dynamically
+        date_idx = -1
+        event_idx = -1
+        dept_idx = -1
+        desc_idx = -1
+
+        for i, h in enumerate(header):
+            if any(k in h for k in ["date", "day", "time", "schedule"]):
+                if date_idx == -1: date_idx = i
+            elif any(k in h for k in ["event", "activity", "title", "particular", "program", "name"]):
+                if event_idx == -1: event_idx = i
+            elif any(k in h for k in ["department", "club", "cell", "committee", "organizer", "in-charge"]):
+                dept_idx = i
+            elif any(k in h for k in ["description", "remark", "detail", "venue", "target"]):
+                desc_idx = i
+
+        if date_idx == -1: date_idx = 0
+        if event_idx == -1: event_idx = 1 if len(header) > 1 else 0
+
+        today = datetime.date.today()
+
+        for r in rows[1:]:
+            if not r or len(r) <= date_idx:
+                continue
+
+            raw_date_str = str(r[date_idx]).strip()
+            raw_event_str = str(r[event_idx]).strip() if len(r) > event_idx else ""
+            raw_dept_str = str(r[dept_idx]).strip() if (dept_idx != -1 and len(r) > dept_idx) else "All Units / Campus Wide"
+            raw_desc_str = str(r[desc_idx]).strip() if (desc_idx != -1 and len(r) > desc_idx) else ""
+
+            if not raw_event_str or raw_event_str.lower() in ["nil", "none", "-", "holiday", "sunday"]:
+                continue
+
+            # Check for date span (e.g., "19/08/2026 to 21/08/2026")
+            start_date = None
+            end_date = None
+
+            if any(sep in raw_date_str.lower() for sep in [" to ", " - ", " till ", " until "]):
+                parts = re.split(r'\s+to\s+|\s+-\s+|\s+till\s+|\s+until\s+', raw_date_str, flags=re.IGNORECASE)
+                if len(parts) >= 2:
+                    start_date = parse_flexible_date(parts[0])
+                    end_date = parse_flexible_date(parts[1])
+            
+            if not start_date:
+                start_date = parse_flexible_date(raw_date_str)
+                end_date = start_date
+
+            if not start_date:
+                continue
+
+            # Auto-tag department if mentioned in event text
+            matched_dept = raw_dept_str
+            for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
+                if d.lower() in (raw_event_str + " " + raw_dept_str + " " + raw_desc_str).lower():
+                    matched_dept = d
+                    break
+
+            # Check Status relative to Today
+            is_today = False
+            is_upcoming_2weeks = False
+            days_diff = (start_date - today).days
+
+            if end_date and start_date <= today <= end_date:
+                is_today = True
+            elif start_date == today:
+                is_today = True
+            elif 0 < days_diff <= 14:
+                is_upcoming_2weeks = True
+
+            events_list.append({
+                "title": raw_event_str,
+                "date_display": raw_date_str,
+                "start_date": start_date,
+                "end_date": end_date,
+                "dept": matched_dept,
+                "description": raw_desc_str,
+                "is_today": is_today,
+                "is_upcoming_2weeks": is_upcoming_2weeks,
+                "days_away": days_diff
+            })
+
+    except Exception:
+        pass
+
+    return events_list
+
+# --- 4. ROBUST WORD DOCUMENT PARSER ---
 def extract_announcements_from_docx(file_bytes):
     entries = []
     try:
@@ -286,7 +427,7 @@ def extract_announcements_from_docx(file_bytes):
             clean_t = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', raw_t).strip(' \t\n\r|•-:')
             return clean_t, list(set(urls))
 
-        # Parse tables row by row
+        # Process Tables
         for table in doc.tables:
             if not table.rows or len(table.rows) < 2:
                 continue
@@ -455,7 +596,7 @@ def fetch_sheet_records(sheet_name, creds):
     except Exception:
         return pd.DataFrame()
 
-# --- 4. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
+# --- 5. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(name_focus, active_month, active_year, creds):
     doc = Document()
     doc.styles['Normal'].font.name = 'Times New Roman'
@@ -587,7 +728,7 @@ def styled_block(format_text, example_text):
     html_string = f"""<div style="background-color: #FFFFFF; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #EAECEF; margin-bottom: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"><div style="display: flex; align-items: flex-start; margin-bottom: 14px;"><div style="background-color: #E8EAF6; color: #1A237E; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 4px 8px; border-radius: 4px; margin-right: 12px; min-width: 70px; text-align: center; border-left: 3px solid #1A237E;">Format</div><div style="color: #2C3E50; font-size: 14px; line-height: 1.5; font-weight: 500;">{format_text}</div></div><div style="height: 1px; background-color: #F1F3F5; margin: 12px 0;"></div><div style="display: flex; align-items: flex-start;"><div style="background-color: #E8F5E9; color: #1B5E20; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 4px 8px; border-radius: 4px; margin-right: 12px; min-width: 70px; text-align: center; border-left: 3px solid #2E7D32;">Example</div><div style="color: #455A64; font-size: 14px; line-height: 1.5; font-style: italic; font-weight: 500;">{example_text}</div></div></div>"""
     st.markdown(html_string, unsafe_allow_html=True)
 
-# --- 5. WEBSITE FRONT-PAGE & ANNOUNCEMENT CARDS ---
+# --- 6. WEBSITE FRONT-PAGE & ANNOUNCEMENT CARDS ---
 def render_scrolling_ticker(announcements):
     ticker_text = " &nbsp;&nbsp;&nbsp; 🌟 &nbsp;&nbsp;&nbsp; ".join(announcements)
     ticker_html = f"""<div style="background: linear-gradient(90deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 10px 15px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); font-weight: 500;"><marquee behavior="scroll" direction="left" scrollamount="6">📢 <b>LATEST RESEARCH HIGHLIGHTS & INDEXED PUBLICATIONS:</b> &nbsp;&nbsp;&nbsp; {ticker_text}</marquee></div>"""
@@ -665,7 +806,27 @@ def render_parsed_doc_entry(entry):
     card_html = f"""<div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 11px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
-# --- 6. STREAMLIT FRAMEWORK DESK ---
+# Render Almanac Events
+def render_almanac_event_card(ev, is_highlighted=False):
+    title = html.escape(ev['title'])
+    date_str = html.escape(ev['date_display'])
+    dept = html.escape(ev['dept'])
+    desc = html.escape(ev['description']) if ev['description'] else ""
+
+    if is_highlighted:
+        border_style = "border-left: 5px solid #16A34A; background: #F0FDF4;"
+        badge_tag = "<span style='background-color: #16A34A; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;'>🚨 HAPPENING TODAY</span>"
+    else:
+        days_away_txt = f"in {ev['days_away']} days" if ev['days_away'] > 1 else ("tomorrow" if ev['days_away'] == 1 else "today")
+        border_style = "border-left: 4px solid #0284C7; background: #FFFFFF;"
+        badge_tag = f"<span style='background-color: #E0F2FE; color: #0369A1; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;'>📅 {days_away_txt}</span>"
+
+    desc_html = f"<p style='margin: 4px 0 0 0; color: #64748B; font-size: 12px;'>{desc}</p>" if desc else ""
+
+    card_html = f"""<div style="{border_style} border-radius: 8px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 12px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">{badge_tag}<span style="color: #64748B; font-size: 11px; font-weight: 600;">{dept}</span></div><h4 style="margin: 0; color: #1E293B; font-size: 14px; font-weight: 700; line-height: 1.4;">{title}</h4><div style="margin-top: 4px; font-size: 12px; color: #334155; font-weight: 500;">🗓️ <b>Date:</b> {date_str}</div>{desc_html}</div>"""
+    st.markdown(card_html, unsafe_allow_html=True)
+
+# --- 7. STREAMLIT FRAMEWORK DESK ---
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "logged_email" not in st.session_state: st.session_state.logged_email = ""
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
@@ -795,10 +956,10 @@ with tab_gallery:
     else:
         st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
 
-# --- TAB 2: LIVE ANNOUNCEMENTS & EVENTS (TWO-COLUMN BULLETIN) ---
+# --- TAB 2: LIVE ANNOUNCEMENTS & ALMANAC EVENTS (TWO-COLUMN BULLETIN) ---
 with tab_announcements:
     st.subheader("📢 Campus Bulletin & Upcoming Opportunities")
-    st.markdown("Live repository of posters, call for papers, upcoming conferences, and departmental activities.")
+    st.markdown("Live repository of conferences, call for papers, and upcoming departmental & club activities from the College Almanac.")
 
     col_f1, col_f2 = st.columns([4, 1])
     with col_f1:
@@ -809,28 +970,28 @@ with tab_announcements:
         if st.button("🔄 Refresh Bulletin", use_container_width=True):
             st.rerun()
 
-    with st.spinner("Accessing Google Drive folders and extracting announcements..."):
+    with st.spinner("Accessing Google Drive folders and syncing Almanac schedule..."):
         research_files = fetch_drive_folder_items(RESEARCH_EVENTS_FOLDER_ID, creds)
         campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
+        almanac_events = fetch_almanac_events(ALMANAC_SHEET_ID, creds)
 
     parsed_docx_entries = []
     regular_research_files = []
 
     for f in research_files:
         name = f.get("name", "")
-        # Only parse Word documents for announcement entries
         if name.endswith(".docx") or "officedocument.wordprocessingml.document" in f.get("mimeType", ""):
             b_data = download_drive_file_bytes(f.get("id"), creds)
             if b_data:
                 extracted = extract_announcements_from_docx(b_data)
                 parsed_docx_entries.extend(extracted)
         else:
-            # Only PDFs, JPGs, and PNGs are kept as flyer cards
             regular_research_files.append(f)
 
     # Two-Column Layout
     col_left, col_right = st.columns(2)
 
+    # LEFT COLUMN: Research Conferences & CFP Dossiers
     with col_left:
         st.markdown("""<div style="background-color: #EEF2FF; border-left: 4px solid #1A237E; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #1A237E;">🔬 Upcoming Conferences & Call for Papers</h4><p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming Research Events</code></p></div>""", unsafe_allow_html=True)
 
@@ -853,23 +1014,48 @@ with tab_announcements:
         if not parsed_docx_entries and not regular_research_files:
             st.info("No conference circulars, Word dossiers, or Call-for-Paper documents found in the Research Events folder.")
 
+    # RIGHT COLUMN: Almanac Events (Today & 2-Week Window) + Campus Activity Flyers
     with col_right:
-        st.markdown("""<div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4><p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming College Events</code></p></div>""", unsafe_allow_html=True)
+        st.markdown("""<div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4><p style="margin: 0; color: #475569; font-size: 12px;">Source: <code>2026-27 College Almanac (Rolling 14-Day Calendar)</code></p></div>""", unsafe_allow_html=True)
 
+        # Filter almanac events by selected unit
+        filtered_almanac = [
+            ev for ev in almanac_events
+            if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in ev["dept"].lower() or selected_unit.lower() in (ev["title"] + " " + ev["description"]).lower()
+        ]
+
+        # 1. Today's Events (Ongoing)
+        today_events = [ev for ev in filtered_almanac if ev['is_today']]
+        if today_events:
+            st.markdown("##### 🚨 **Today's Events (Ongoing)**")
+            for ev in today_events:
+                render_almanac_event_card(ev, is_highlighted=True)
+            st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
+
+        # 2. Upcoming Events (Next 14 Days)
+        upcoming_2w_events = [ev for ev in filtered_almanac if ev['is_upcoming_2weeks']]
+        upcoming_2w_events.sort(key=lambda x: x['start_date'])
+
+        if upcoming_2w_events:
+            st.markdown("##### 📅 **Upcoming Activities (Next 2 Weeks)**")
+            for ev in upcoming_2w_events:
+                render_almanac_event_card(ev, is_highlighted=False)
+        elif not today_events:
+            st.info(f"No Almanac events scheduled for '{selected_unit}' in the next 14 days.")
+
+        # 3. Complementary Flyers / Posters from Drive
         if campus_files:
             filtered_campus = [
                 f for f in campus_files 
                 if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in f.get("name", "").lower()
             ]
             if filtered_campus:
+                st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
+                st.markdown("##### 📁 **Event Posters & Circulars**")
                 for f in filtered_campus:
                     render_bulletin_card(f, "Department / Club Event", bg_color="#16A34A")
-            else:
-                st.info(f"No student/department activities specifically tagged for '{selected_unit}'.")
-        else:
-            st.info("No departmental or student activity flyers currently found in the College Events folder.")
 
-    # Admin Control Panel for Overriding/Deleting Outdated Event Flyers & Word Dossiers
+    # Admin Control Panel
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
         with st.expander("🛠️ Manage Announcements (Delete / Override Expired Dossiers & Flyers)"):
             all_announcements = research_files + campus_files
@@ -1103,7 +1289,7 @@ with tab_submit:
                         st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
                         st.rerun()
 
-# --- 7. MONTHLY GENERATOR ---
+# --- 8. MONTHLY GENERATOR ---
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
@@ -1129,7 +1315,7 @@ with tab_document:
             st.success("🎯 Document synchronized into your Drive repository folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
-# --- 8. ADMIN CONTROL ---
+# --- 9. ADMIN CONTROL ---
 with tab_admin:
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
         st.toggle(
