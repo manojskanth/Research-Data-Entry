@@ -517,7 +517,9 @@ def fetch_sheet_records(sheet_name, creds):
         headers = rows[0]
         max_cols = len(headers)
         data = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows[1:]]
-        return pd.DataFrame(data, columns=headers)
+        df = pd.DataFrame(data, columns=headers)
+        # Reverse rows so newest entries appended at the bottom appear first
+        return df.iloc[::-1].reset_index(drop=True)
     except Exception:
         return pd.DataFrame()
 
@@ -812,15 +814,8 @@ tab_gallery, tab_journals, tab_events, tab_explorer, tab_submit, tab_document, t
 with tab_gallery:
     valid_publications = []
     if not res_df.empty and len(res_df) > 0:
-        try:
-            res_df_sorted = res_df.copy()
-            res_df_sorted['__ts'] = pd.to_datetime(res_df_sorted.iloc[:, 0], errors='coerce')
-            res_df_sorted = res_df_sorted.sort_values(by='__ts', ascending=False, na_position='last')
-            for _, r in res_df_sorted.iterrows():
-                valid_publications.append(r)
-        except:
-            for _, r in res_df.iterrows():
-                valid_publications.append(r)
+        for _, r in res_df.iterrows():
+            valid_publications.append(r)
 
     if valid_publications:
         ticker_items = []
