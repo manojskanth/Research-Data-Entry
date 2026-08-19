@@ -86,7 +86,7 @@ FACULTY_DIRECTORY = {
     "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
     "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
     "kirtibdnr@stmaryscollege.in": {"name": "Dr. Kirti", "secret_key": "kirti_pass"},
-    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikhasharma_pass"},
+    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikha_pass"},
     "himani@stmaryscollege.in": {"name": "Dr. Himani", "secret_key": "himani_pass"},
     "roy@stmaryscollege.in": {"name": "Mr. MSS Roy", "secret_key": "roy_pass"},
     "phebi@stmaryscollege.in": {"name": "Ms. Phebi", "secret_key": "phebi_pass"},
@@ -250,7 +250,7 @@ def download_drive_file_bytes(file_id, creds):
     except Exception:
         return None
 
-# --- 3. UNIVERSAL ALMANAC PARSER & DATE MATCHER ---
+# --- 3. ALMANAC PARSER ENGINE ---
 def parse_single_date(s):
     if not s:
         return None
@@ -341,9 +341,10 @@ def normalize_almanac_department(raw_text):
 def fetch_almanac_events(sheet_id, creds):
     """
     Extracts all events from the Almanac Sheet workbook across all tabs.
-    Evaluates Today's events and the next 14 days chronologically.
+    Returns parsed event list and diagnostic status.
     """
     raw_rows = []
+    error_msg = ""
     
     # 1. Try Google Sheets API with FORMATTED_VALUE option across all sheets
     try:
@@ -361,10 +362,10 @@ def fetch_almanac_events(sheet_id, creds):
             rows = res.get('values', [])
             if rows:
                 raw_rows.extend(rows)
-    except Exception:
-        pass
+    except Exception as e:
+        error_msg = f"API Error: {str(e)}"
 
-    # 2. Public CSV stream fallback
+    # 2. Public CSV stream fallback if API fails
     if not raw_rows:
         try:
             csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={ALMANAC_GID}"
@@ -373,11 +374,12 @@ def fetch_almanac_events(sheet_id, creds):
                 csv_text = response.read().decode('utf-8')
                 df = pd.read_csv(io.StringIO(csv_text), header=None)
                 raw_rows = df.fillna("").values.tolist()
-        except Exception:
-            pass
+        except Exception as e_csv:
+            if not error_msg:
+                error_msg = f"CSV Fallback Error: {str(e_csv)}"
 
     if not raw_rows:
-        return []
+        return [], error_msg
 
     events_list = []
     today = datetime.date.today()
@@ -390,7 +392,6 @@ def fetch_almanac_events(sheet_id, creds):
         if not row_str:
             continue
 
-        # Look for date pattern (e.g. 20/08/2026 or 21/08/2026 to 22/08/2026)
         date_pattern = r'([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}(?:\s*(?:to|\-)\s*[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})?)'
         dates_found = re.findall(date_pattern, row_str, re.IGNORECASE)
 
@@ -448,9 +449,8 @@ def fetch_almanac_events(sheet_id, creds):
                 "days_away": days_diff
             })
 
-    # Sort all events chronologically by start date
     events_list.sort(key=lambda x: x['start_date'])
-    return events_list
+    return events_list, ""
 
 # --- 4. ROBUST WORD DOCUMENT PARSER ---
 def extract_announcements_from_docx(file_bytes):
@@ -1033,7 +1033,7 @@ with tab_announcements:
     with st.spinner("Accessing Google Drive folders and syncing Almanac schedule..."):
         research_files = fetch_drive_folder_items(RESEARCH_EVENTS_FOLDER_ID, creds)
         campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
-        almanac_events = fetch_almanac_events(ALMANAC_SHEET_ID, creds)
+        almanac_events, almanac_error = fetch_almanac_events(ALMANAC_SHEET_ID, creds)
 
     parsed_docx_entries = []
     regular_research_files = []
@@ -1086,7 +1086,7 @@ with tab_announcements:
                 render_almanac_event_card(ev, is_highlighted=True)
             st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
 
-        # 2. Upcoming Events (Next 14 Days) - ALL EVENTS INCLUDED
+        # 2. Upcoming Events (Next 14 Days)
         upcoming_2w_events = [ev for ev in almanac_events if ev['is_upcoming_2weeks']]
 
         if upcoming_2w_events:
@@ -1095,11 +1095,14 @@ with tab_announcements:
                 render_almanac_event_card(ev, is_highlighted=False)
         elif not today_events:
             if not almanac_events:
-                st.warning("⚠️ Almanac Sheet could not be reached. Check that the service account or link sharing is active.")
+                st.warning("⚠️ Almanac Sheet could not be reached or has no date rows matching August/September 2026.")
+                if almanac_error:
+                    with st.expander("🔍 View Almanac Diagnostic Error Details"):
+                        st.code(almanac_error)
             else:
                 st.info("No Almanac events scheduled for the next 14 days.")
 
-        # 3. Complementary Flyers / Posters from Drive
+        # 3. Event Posters & Circulars from Drive
         if campus_files:
             st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
             st.markdown("##### 📁 **Event Posters & Circulars**")
