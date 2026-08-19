@@ -248,7 +248,7 @@ def download_drive_file_bytes(file_id, creds):
         return None
 
 def extract_announcements_from_docx(file_bytes):
-    """Intelligently parses Word document (.docx) tables & paragraphs into rich structured notice cards."""
+    """Intelligently parses Word document (.docx) tables & paragraphs, ignoring headers and metadata."""
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
@@ -302,8 +302,12 @@ def extract_announcements_from_docx(file_bytes):
                 
                 if len(valid_cells) >= 2:
                     joined_lower = " ".join(valid_cells).lower()
-                    if any(h in joined_lower for h in ["s.no", "serial no", "journal title", "journal name", "name of journal", "paper title", "submission link"]) and len(valid_cells) <= 3:
-                        continue  # Skip table header row
+                    
+                    # Strict Table Header Filter: Skip table header rows unconditionally
+                    header_indicators = ["s.no", "serial", "sl.no", "journal title", "journal name", "name of journal", "paper title", "submission link", "frequency", "formatting brief", "guidelines", "brief guideline", "website link", "status"]
+                    match_count = sum(1 for h in header_indicators if h in joined_lower)
+                    if match_count >= 2 or valid_cells[0].lower() in ["s.no", "sl.no", "s. no", "serial no", "no."]:
+                        continue
 
                     all_urls = []
                     text_pieces = []
@@ -311,7 +315,8 @@ def extract_announcements_from_docx(file_bytes):
                         urls_in_c = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', c)
                         all_urls.extend(urls_in_c)
                         non_url_text = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', c).strip(' \t\n\r|•-:')
-                        if non_url_text and non_url_text.lower() not in ["data point not found", "n/a", "na", "-", "|"]:
+                        # Exclude generic column labels that may be inside cells
+                        if non_url_text and non_url_text.lower() not in ["data point not found", "n/a", "na", "-", "|", "formatting brief", "frequency", "guidelines", "link"]:
                             text_pieces.append(non_url_text)
 
                     title = ""
@@ -322,9 +327,12 @@ def extract_announcements_from_docx(file_bytes):
 
                     for piece in text_pieces:
                         p_lower = piece.lower()
-                        if any(k in p_lower for k in ["continuous", "bi-annual", "biannual", "annual", "quarterly", "monthly", "year-round", "open year-round", "triannual", "half-yearly", "issues/year", "frequency"]):
+                        # Strict check to ignore raw header titles accidentally passed
+                        if p_lower in ["formatting brief", "frequency", "submission link", "guidelines", "journal name"]:
+                            continue
+                        if any(k in p_lower for k in ["continuous", "bi-annual", "biannual", "annual", "quarterly", "monthly", "year-round", "open year-round", "triannual", "half-yearly", "issues/year"]):
                             frequency_val = piece
-                        elif any(k in p_lower for k in ["word", "spacing", "tnr", "font", "apa", "ieee", "mla", "pages", "guideline", "format", "manuscript", "template"]):
+                        elif any(k in p_lower for k in ["word", "spacing", "tnr", "font", "apa", "ieee", "mla", "pages", "template", "manuscript"]) and len(piece) > 10:
                             guidelines_val = piece
                         elif any(k in p_lower for k in ["deadline", "due date", "last date", "submission date", "submit by", "register by"]):
                             deadlines_val = piece
@@ -342,7 +350,7 @@ def extract_announcements_from_docx(file_bytes):
                         elif text_pieces:
                             title = text_pieces[0]
                         else:
-                            title = "Research Announcement"
+                            continue  # Do not generate orphan cards
 
                     reg_links = []
                     gen_links = []
@@ -356,12 +364,12 @@ def extract_announcements_from_docx(file_bytes):
                     content_lines = []
                     if frequency_val:
                         content_lines.append(f"🔄 **Publication Frequency / Cycle:** {frequency_val}")
-                    if guidelines_val:
+                    if guidelines_val and guidelines_val.lower() != "formatting brief":
                         content_lines.append(f"📝 **Manuscript Guidelines & Length:** {guidelines_val}")
                     if deadlines_val:
                         content_lines.append(f"⏰ **Important Dates:** {deadlines_val}")
                     for od in other_details:
-                        if od != frequency_val and od != guidelines_val and od != title:
+                        if od != frequency_val and od != guidelines_val and od != title and od.lower() != "formatting brief":
                             content_lines.append(f"• {od}")
 
                     final_content = "\n".join(content_lines) if content_lines else "• Open for continuous submission and review."
@@ -383,19 +391,18 @@ def extract_announcements_from_docx(file_bytes):
                         "gen_links": list(set(gen_links))
                     })
 
-        # 3. Parse Substantive Paragraphs (Only genuine non-table announcements)
+        # 3. Parse Substantive Paragraphs (Strict filter to ignore headers/dates/timestamps)
         for p in doc.paragraphs:
             txt = p.text.strip()
-            # Strict filter: Ignore metadata, update timestamps, headers, and one-liners
             if not txt or len(txt) < 35:
                 continue
-            if any(k in txt.lower() for k in ["updated on", "compiled by", "ugc care listed", "scopus", "disclaimer", "page ", "table of contents", "st. mary"]):
+            if any(k in txt.lower() for k in ["updated on", "compiled by", "ugc care listed", "scopus", "disclaimer", "page ", "table of contents", "st. mary", "formatting brief"]):
                 continue
 
             r_urls, g_urls, r_dl, s_dl = parse_text_meta(txt)
             cleaned_text = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', txt).strip()
             
-            if cleaned_text:
+            if cleaned_text and len(cleaned_text) > 30:
                 title_line = cleaned_text[:75] + "..." if len(cleaned_text) > 75 else cleaned_text
                 entries.append({
                     "title": title_line,
@@ -715,7 +722,7 @@ def render_parsed_doc_entry(entry):
     if entry.get("reg_links"):
         for url in entry.get("reg_links"):
             clean_url = url if url.startswith("http") else f"https://{url}"
-            btn_label = "📖 Author Guidelines / Submission" if "guide" in url.lower() else "🎟️ Register Here (Registration Link)"
+            btn_label = "📖 Author Guidelines / Submission" if "guide" in url.lower() else "🎟️ Register / Submit Paper"
             action_buttons.append(f"""
             <a href='{clean_url}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 12px; margin-right: 8px; margin-top: 8px; display: inline-block; box-shadow: 0 2px 6px rgba(225, 29, 72, 0.25);'>
                 {btn_label}
