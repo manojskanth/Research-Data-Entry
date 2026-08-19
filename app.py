@@ -248,7 +248,25 @@ def download_drive_file_bytes(file_id, creds):
     except Exception:
         return None
 
-# --- 3. EXCEL-BASED ALMANAC PARSER ENGINE ---
+# --- 3. HIGH-PRECISION ALMANAC TOKENIZER ---
+DEPARTMENT_PATTERNS = [
+    "Department of Business Management & Alumni Committee",
+    "Department of Social Sciences & Humanities",
+    "Department of Physical Education & Sports",
+    "Department of English & Languages",
+    "Department of Business Management",
+    "Department of Sciences",
+    "Research & Innovation Cell",
+    "Commerce & Alumni Committee",
+    "Women Empowerment Cell",
+    "Internal Complaints Committee",
+    "Library Committee",
+    "Commerce",
+    "IQAC",
+    "NSS",
+    "All"
+]
+
 def parse_single_date(s):
     if not s:
         return None
@@ -336,9 +354,71 @@ def normalize_almanac_department(raw_text):
 
     return "All Units / Campus Wide"
 
+def parse_concatenated_almanac_stream(full_text, today):
+    """
+    Parses un-delimited continuous Almanac strings by tokenizing along date boundaries.
+    """
+    events = []
+    # Tokenize along every occurrence of DD/MM/YYYY or DD/MM/YYYY to DD/MM/YYYY
+    token_pattern = r'([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}(?:\s*(?:to|\-)\s*[0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})?)'
+    chunks = re.split(token_pattern, full_text)
+
+    i = 1
+    while i < len(chunks):
+        d_str = chunks[i].strip()
+        body = chunks[i + 1].strip() if (i + 1) < len(chunks) else ""
+        i += 2
+
+        start_date, end_date = parse_strict_or_range_date(d_str)
+        if not start_date or not body:
+            continue
+
+        # 1. Strip Day of Week from start of body
+        clean_body = re.sub(r'^(?:monday\/tuesday|friday\/saturday|thursday\/friday|saturday\/sunday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)[\s\/\,\-]*', '', body, flags=re.IGNORECASE).strip()
+
+        # 2. Extract Department from end of body
+        detected_dept = "All Units / Campus Wide"
+        event_title = clean_body
+
+        for pattern in DEPARTMENT_PATTERNS:
+            if clean_body.endswith(pattern) or re.search(re.escape(pattern) + r'$', clean_body, re.IGNORECASE):
+                detected_dept = pattern
+                event_title = clean_body[:len(clean_body) - len(pattern)].strip()
+                break
+
+        if not event_title:
+            event_title = clean_body
+
+        matched_dept = normalize_almanac_department(detected_dept)
+
+        is_today = False
+        is_upcoming_2weeks = False
+        days_diff = (start_date - today).days
+
+        if end_date and start_date <= today <= end_date:
+            is_today = True
+        elif start_date == today:
+            is_today = True
+        elif 0 < days_diff <= 14:
+            is_upcoming_2weeks = True
+
+        events.append({
+            "title": event_title,
+            "date_display": d_str,
+            "start_date": start_date,
+            "end_date": end_date,
+            "dept": matched_dept,
+            "description": detected_dept if detected_dept != "All Units / Campus Wide" and detected_dept != matched_dept else "",
+            "is_today": is_today,
+            "is_upcoming_2weeks": is_upcoming_2weeks,
+            "days_away": days_diff
+        })
+
+    return events
+
 def fetch_almanac_events(file_id, creds):
     """
-    Downloads Excel (.xlsx) file bytes from Google Drive and reads all tabs using pandas.
+    Extracts events from the Excel Almanac (.xlsx) file, using dual-mode tokenization.
     """
     events_list = []
     today = datetime.date.today()
@@ -352,75 +432,32 @@ def fetch_almanac_events(file_id, creds):
         
         for sheet_name, df in excel_dict.items():
             raw_matrix = df.fillna("").values.tolist()
+            combined_text = ""
 
             for r in raw_matrix:
                 if not r:
                     continue
+                row_str = " ".join([str(c).strip() for c in r if str(c).strip()])
+                combined_text += " " + row_str
 
-                row_str = " | ".join([str(c).strip() for c in r if str(c).strip()])
-                if not row_str:
-                    continue
-
-                date_pattern = r'([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}(?:\s*(?:to|\-)\s*[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})?)'
-                dates_found = re.findall(date_pattern, row_str, re.IGNORECASE)
-
-                if not dates_found:
-                    continue
-
-                for d_str in dates_found:
-                    start_date, end_date = parse_strict_or_range_date(d_str)
-                    if not start_date:
-                        continue
-
-                    cells = [str(c).strip() for c in r if str(c).strip()]
-                    meaningful = [
-                        c for c in cells 
-                        if not re.search(r'^[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}', c) and 
-                        c.lower() not in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "monday/tuesday", "friday/saturday", "day", "date", "s.no", "sl.no", "-", "none", "nil"]
-                    ]
-
-                    if meaningful:
-                        event_title = meaningful[0]
-                        dept_hint = " ".join(meaningful[1:]) if len(meaningful) > 1 else ""
-                    else:
-                        cleaned_line = row_str.replace(d_str, '').strip(' |')
-                        cleaned_line = re.sub(r'^(?:mon|tue|wed|thu|fri|sat|sun)[a-z\/]*', '', cleaned_line, flags=re.IGNORECASE).strip(' |')
-                        event_title = cleaned_line
-                        dept_hint = ""
-
-                    if not event_title or event_title.lower() in ["nil", "none", "holiday", "sunday", "event", "particulars"]:
-                        continue
-
-                    matched_dept = normalize_almanac_department(dept_hint + " " + event_title)
-
-                    is_today = False
-                    is_upcoming_2weeks = False
-                    days_diff = (start_date - today).days
-
-                    if end_date and start_date <= today <= end_date:
-                        is_today = True
-                    elif start_date == today:
-                        is_today = True
-                    elif 0 < days_diff <= 14:
-                        is_upcoming_2weeks = True
-
-                    events_list.append({
-                        "title": event_title,
-                        "date_display": d_str,
-                        "start_date": start_date,
-                        "end_date": end_date,
-                        "dept": matched_dept,
-                        "description": dept_hint if dept_hint and dept_hint != matched_dept else "",
-                        "is_today": is_today,
-                        "is_upcoming_2weeks": is_upcoming_2weeks,
-                        "days_away": days_diff
-                    })
+            # Parse entire sheet text using tokenizer
+            parsed = parse_concatenated_almanac_stream(combined_text, today)
+            events_list.extend(parsed)
 
     except Exception:
         pass
 
-    events_list.sort(key=lambda x: x['start_date'])
-    return events_list
+    # Deduplicate and sort chronologically
+    seen = set()
+    unique_events = []
+    for ev in events_list:
+        key = (ev['date_display'], ev['title'])
+        if key not in seen:
+            seen.add(key)
+            unique_events.append(ev)
+
+    unique_events.sort(key=lambda x: x['start_date'])
+    return unique_events
 
 # --- 4. ROBUST WORD DOCUMENT PARSER ---
 def extract_announcements_from_docx(file_bytes):
