@@ -9,7 +9,6 @@ import base64
 import os
 import re
 import html
-import urllib.request
 import pandas as pd
 from docx import Document
 from docx.shared import Pt
@@ -17,8 +16,7 @@ from docx.oxml.ns import qn
 
 # --- 1. CORE SYSTEM CONFIGURATION ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
-ALMANAC_SHEET_ID = "1ByouwZVNzQRtQsFLZLR9wppXKwakbczR"
-ALMANAC_GID = "771144646"
+ALMANAC_FILE_ID = "1ByouwZVNzQRtQsFLZLR9wppXKwakbczR"
 
 RESEARCH_EVENTS_FOLDER_ID = "1UZxcyKw3RgmjyNV7eyIgwhzOkovB5fhF"
 CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS"
@@ -86,7 +84,7 @@ FACULTY_DIRECTORY = {
     "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
     "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
     "kirtibdnr@stmaryscollege.in": {"name": "Dr. Kirti", "secret_key": "kirti_pass"},
-    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikha_pass"},
+    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikhasharma_pass"},
     "himani@stmaryscollege.in": {"name": "Dr. Himani", "secret_key": "himani_pass"},
     "roy@stmaryscollege.in": {"name": "Mr. MSS Roy", "secret_key": "roy_pass"},
     "phebi@stmaryscollege.in": {"name": "Ms. Phebi", "secret_key": "phebi_pass"},
@@ -250,7 +248,7 @@ def download_drive_file_bytes(file_id, creds):
     except Exception:
         return None
 
-# --- 3. ALMANAC PARSER ENGINE ---
+# --- 3. EXCEL-BASED ALMANAC PARSER ENGINE ---
 def parse_single_date(s):
     if not s:
         return None
@@ -338,119 +336,91 @@ def normalize_almanac_department(raw_text):
 
     return "All Units / Campus Wide"
 
-def fetch_almanac_events(sheet_id, creds):
+def fetch_almanac_events(file_id, creds):
     """
-    Extracts all events from the Almanac Sheet workbook across all tabs.
-    Returns parsed event list and diagnostic status.
+    Downloads Excel (.xlsx) file bytes from Google Drive and reads all tabs using pandas.
     """
-    raw_rows = []
-    error_msg = ""
-    
-    # 1. Try Google Sheets API with FORMATTED_VALUE option across all sheets
-    try:
-        sheets_service = build('sheets', 'v4', credentials=creds)
-        spreadsheet_meta = sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
-        sheets = spreadsheet_meta.get('sheets', [])
-        
-        for s in sheets:
-            sheet_title = s['properties']['title']
-            res = sheets_service.spreadsheets().values().get(
-                spreadsheetId=sheet_id,
-                range=f"'{sheet_title}'!A1:Z1000",
-                valueRenderOption='FORMATTED_VALUE'
-            ).execute()
-            rows = res.get('values', [])
-            if rows:
-                raw_rows.extend(rows)
-    except Exception as e:
-        error_msg = f"API Error: {str(e)}"
-
-    # 2. Public CSV stream fallback if API fails
-    if not raw_rows:
-        try:
-            csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={ALMANAC_GID}"
-            req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                csv_text = response.read().decode('utf-8')
-                df = pd.read_csv(io.StringIO(csv_text), header=None)
-                raw_rows = df.fillna("").values.tolist()
-        except Exception as e_csv:
-            if not error_msg:
-                error_msg = f"CSV Fallback Error: {str(e_csv)}"
-
-    if not raw_rows:
-        return [], error_msg
-
     events_list = []
     today = datetime.date.today()
+    excel_bytes = download_drive_file_bytes(file_id, creds)
 
-    for r in raw_rows:
-        if not r:
-            continue
+    if not excel_bytes:
+        return []
 
-        row_str = " | ".join([str(c).strip() for c in r if str(c).strip()])
-        if not row_str:
-            continue
+    try:
+        excel_dict = pd.read_excel(io.BytesIO(excel_bytes), sheet_name=None, header=None)
+        
+        for sheet_name, df in excel_dict.items():
+            raw_matrix = df.fillna("").values.tolist()
 
-        date_pattern = r'([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}(?:\s*(?:to|\-)\s*[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})?)'
-        dates_found = re.findall(date_pattern, row_str, re.IGNORECASE)
+            for r in raw_matrix:
+                if not r:
+                    continue
 
-        if not dates_found:
-            continue
+                row_str = " | ".join([str(c).strip() for c in r if str(c).strip()])
+                if not row_str:
+                    continue
 
-        for d_str in dates_found:
-            start_date, end_date = parse_strict_or_range_date(d_str)
-            if not start_date:
-                continue
+                date_pattern = r'([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}(?:\s*(?:to|\-)\s*[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})?)'
+                dates_found = re.findall(date_pattern, row_str, re.IGNORECASE)
 
-            cells = [str(c).strip() for c in r if str(c).strip()]
-            event_title = ""
-            dept_hint = ""
+                if not dates_found:
+                    continue
 
-            meaningful = [
-                c for c in cells 
-                if not re.search(r'^[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}', c) and 
-                c.lower() not in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "monday/tuesday", "friday/saturday", "day", "date", "s.no", "sl.no", "-", "none", "nil"]
-            ]
+                for d_str in dates_found:
+                    start_date, end_date = parse_strict_or_range_date(d_str)
+                    if not start_date:
+                        continue
 
-            if meaningful:
-                event_title = meaningful[0]
-                dept_hint = " ".join(meaningful[1:]) if len(meaningful) > 1 else ""
-            else:
-                cleaned_line = row_str.replace(d_str, '').strip(' |')
-                cleaned_line = re.sub(r'^(?:mon|tue|wed|thu|fri|sat|sun)[a-z\/]*', '', cleaned_line, flags=re.IGNORECASE).strip(' |')
-                event_title = cleaned_line
+                    cells = [str(c).strip() for c in r if str(c).strip()]
+                    meaningful = [
+                        c for c in cells 
+                        if not re.search(r'^[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}', c) and 
+                        c.lower() not in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "monday/tuesday", "friday/saturday", "day", "date", "s.no", "sl.no", "-", "none", "nil"]
+                    ]
 
-            if not event_title or event_title.lower() in ["nil", "none", "holiday", "sunday", "event", "particulars"]:
-                continue
+                    if meaningful:
+                        event_title = meaningful[0]
+                        dept_hint = " ".join(meaningful[1:]) if len(meaningful) > 1 else ""
+                    else:
+                        cleaned_line = row_str.replace(d_str, '').strip(' |')
+                        cleaned_line = re.sub(r'^(?:mon|tue|wed|thu|fri|sat|sun)[a-z\/]*', '', cleaned_line, flags=re.IGNORECASE).strip(' |')
+                        event_title = cleaned_line
+                        dept_hint = ""
 
-            matched_dept = normalize_almanac_department(dept_hint + " " + event_title)
+                    if not event_title or event_title.lower() in ["nil", "none", "holiday", "sunday", "event", "particulars"]:
+                        continue
 
-            is_today = False
-            is_upcoming_2weeks = False
-            days_diff = (start_date - today).days
+                    matched_dept = normalize_almanac_department(dept_hint + " " + event_title)
 
-            if end_date and start_date <= today <= end_date:
-                is_today = True
-            elif start_date == today:
-                is_today = True
-            elif 0 < days_diff <= 14:
-                is_upcoming_2weeks = True
+                    is_today = False
+                    is_upcoming_2weeks = False
+                    days_diff = (start_date - today).days
 
-            events_list.append({
-                "title": event_title,
-                "date_display": d_str,
-                "start_date": start_date,
-                "end_date": end_date,
-                "dept": matched_dept,
-                "description": dept_hint if dept_hint and dept_hint != matched_dept else "",
-                "is_today": is_today,
-                "is_upcoming_2weeks": is_upcoming_2weeks,
-                "days_away": days_diff
-            })
+                    if end_date and start_date <= today <= end_date:
+                        is_today = True
+                    elif start_date == today:
+                        is_today = True
+                    elif 0 < days_diff <= 14:
+                        is_upcoming_2weeks = True
+
+                    events_list.append({
+                        "title": event_title,
+                        "date_display": d_str,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "dept": matched_dept,
+                        "description": dept_hint if dept_hint and dept_hint != matched_dept else "",
+                        "is_today": is_today,
+                        "is_upcoming_2weeks": is_upcoming_2weeks,
+                        "days_away": days_diff
+                    })
+
+    except Exception:
+        pass
 
     events_list.sort(key=lambda x: x['start_date'])
-    return events_list, ""
+    return events_list
 
 # --- 4. ROBUST WORD DOCUMENT PARSER ---
 def extract_announcements_from_docx(file_bytes):
@@ -1033,7 +1003,7 @@ with tab_announcements:
     with st.spinner("Accessing Google Drive folders and syncing Almanac schedule..."):
         research_files = fetch_drive_folder_items(RESEARCH_EVENTS_FOLDER_ID, creds)
         campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
-        almanac_events, almanac_error = fetch_almanac_events(ALMANAC_SHEET_ID, creds)
+        almanac_events = fetch_almanac_events(ALMANAC_FILE_ID, creds)
 
     parsed_docx_entries = []
     regular_research_files = []
@@ -1086,21 +1056,15 @@ with tab_announcements:
                 render_almanac_event_card(ev, is_highlighted=True)
             st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
 
-        # 2. Upcoming Events (Next 14 Days)
+        # 2. Upcoming Events (Next 14 Days) - ALL EVENTS
         upcoming_2w_events = [ev for ev in almanac_events if ev['is_upcoming_2weeks']]
 
         if upcoming_2w_events:
-            st.markdown(f"##### 📅 **Upcoming Activities (Next 2 Weeks: {len(upcoming_2w_events)} Events)**")
+            st.markdown(f"##### 📅 **Upcoming Activities (Next 2 Weeks: {len(upcoming_2w_events)} Events Scheduled)**")
             for ev in upcoming_2w_events:
                 render_almanac_event_card(ev, is_highlighted=False)
         elif not today_events:
-            if not almanac_events:
-                st.warning("⚠️ Almanac Sheet could not be reached or has no date rows matching August/September 2026.")
-                if almanac_error:
-                    with st.expander("🔍 View Almanac Diagnostic Error Details"):
-                        st.code(almanac_error)
-            else:
-                st.info("No Almanac events scheduled for the next 14 days.")
+            st.info("No Almanac events scheduled for the next 14 days.")
 
         # 3. Event Posters & Circulars from Drive
         if campus_files:
