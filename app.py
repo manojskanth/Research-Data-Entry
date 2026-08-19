@@ -810,6 +810,45 @@ tab_gallery, tab_journals, tab_events, tab_explorer, tab_submit, tab_document, t
 
 # --- TAB 1: RESEARCH HALL OF FAME ---
 with tab_gallery:
+    def get_timestamp_sort_key(row):
+        # Index 0 or first column is typically timestamp if present, otherwise row index order
+        try:
+            return pd.to_datetime(str(row.iloc[0]))
+        except:
+            return pd.Timestamp.min
+
+    valid_publications = []
+    if not res_df.empty and len(res_df) > 0:
+        # Sort DataFrame rows by timestamp descending to get the newest entries first
+        try:
+            res_df_sorted = res_df.copy()
+            res_df_sorted['__ts'] = pd.to_datetime(res_df_sorted.iloc[:, 0], errors='coerce')
+            res_df_sorted = res_df_sorted.sort_values(by='__ts', ascending=False, na_position='last')
+            for _, r in res_df_sorted.iterrows():
+                valid_publications.append(r)
+        except:
+            for _, r in res_df.iterrows():
+                valid_publications.append(r)
+
+    if valid_publications:
+        ticker_items = []
+        # Take the top 10 most recently added research entries based on timestamp
+        for row in valid_publications[:10]:
+            f_auth = row.iloc[0] if len(row) > 0 else "Faculty"
+            f_type = row.iloc[2] if len(row) > 2 else "Publication"
+            f_idx = row.iloc[3] if len(row) > 3 else "Indexed"
+            f_title = row.iloc[4] if len(row) > 4 else "Research Work"
+            f_jour = row.iloc[8] if len(row) > 8 else "Publisher"
+            tag = "🌟 FULL BOOK" if "full book" in str(f_type).lower() else f"[{f_idx}]"
+            ticker_items.append(f"{f_auth} {tag}: '{f_title}' ({f_jour})")
+        render_scrolling_ticker(ticker_items)
+    else:
+        render_scrolling_ticker([
+            "Dr. Srinath Naganathan [Scopus]: 'Bioremediation Kinetics' in Environmental Science",
+            "Dr. Manoj Kanth [ABDC]: 'Strategic Corporate Governance' in Journal of Financial Studies",
+            "Dr. Rajita Anand Singh [UGC Care Listed]: 'Modern Commonwealth Fiction'"
+        ])
+
     def get_impact_rank(row):
         pub_type = str(row.iloc[2]).strip().lower() if len(row) > 2 else ""
         indexing = str(row.iloc[3]).strip().lower() if len(row) > 3 else ""
@@ -820,29 +859,6 @@ with tab_gallery:
         elif "book chapter" in pub_type or "proceeding" in indexing: return 5
         elif "peer reviewed" in indexing: return 6
         return 99
-
-    valid_publications = []
-    if not res_df.empty and len(res_df) > 0:
-        for _, r in res_df.iterrows():
-            valid_publications.append(r)
-
-    if valid_publications:
-        ticker_items = []
-        for row in valid_publications[:10]:
-            f_auth = row.iloc[0] if len(row) > 0 else "Faculty"
-            f_type = row.iloc[2] if len(row) > 2 else "Publication"
-            f_idx = row.iloc[3] if len(row) > 3 else "Indexed"
-            f_title = row.iloc[4] if len(row) > 4 else "Research Work"
-            f_jour = row.iloc[8] if len(row) > 8 else "Publisher"
-            tag = "🌟 FULL BOOK" if "full book" in f_type.lower() else f"[{f_idx}]"
-            ticker_items.append(f"{f_auth} {tag}: '{f_title}' ({f_jour})")
-        render_scrolling_ticker(ticker_items)
-    else:
-        render_scrolling_ticker([
-            "Dr. Srinath Naganathan [Scopus]: 'Bioremediation Kinetics' in Environmental Science",
-            "Dr. Manoj Kanth [ABDC]: 'Strategic Corporate Governance' in Journal of Financial Studies",
-            "Dr. Rajita Anand Singh [UGC Care Listed]: 'Modern Commonwealth Fiction'"
-        ])
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("🔬 Total Research Logged", len(res_df) if not res_df.empty else 0)
@@ -1075,7 +1091,7 @@ with tab_submit:
                                     target_folder = get_or_create_drive_folder(current_faculty_name, dept_base_folder, creds)
                                 
                                 drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
-                                new_row = [current_faculty_name, form_focus, r_type, index_type, title, drive_link, date_span, url, org, scope, scope, org, issn, form_month]
+                                new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_focus, r_type, index_type, title, drive_link, date_span, url, org, scope, scope, org, issn, form_month]
                                 append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
                                 st.success("🎉 Research entry written and sorted in Master Sheet successfully!")
                                 st.rerun()
