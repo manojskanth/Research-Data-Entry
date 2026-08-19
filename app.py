@@ -698,24 +698,24 @@ def render_parsed_doc_entry(entry):
     
     badges_list = []
     if entry.get('frequency'):
-        badges_list.append(f"<span style='background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 14px; padding: 6px 12px; border-radius: 6px; margin-right: 8px; margin-bottom: 8px; display: inline-block;'>🔄 <b>Cycle:</b> {html.escape(str(entry['frequency']))}</span>")
+        badges_list.append(f"<span style='background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 15px; padding: 6px 12px; border-radius: 6px; margin-right: 8px; margin-bottom: 8px; display: inline-block;'>🔄 <b>Cycle:</b> {html.escape(str(entry['frequency']))}</span>")
     if entry.get('apc'):
-        badges_list.append(f"<span style='background-color: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-weight: 600; font-size: 14px; padding: 6px 12px; border-radius: 6px; margin-right: 8px; margin-bottom: 8px; display: inline-block;'>💰 <b>APC:</b> {html.escape(str(entry['apc']))}</span>")
+        badges_list.append(f"<span style='background-color: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-weight: 600; font-size: 15px; padding: 6px 12px; border-radius: 6px; margin-right: 8px; margin-bottom: 8px; display: inline-block;'>💰 <b>APC:</b> {html.escape(str(entry['apc']))}</span>")
     if entry.get('guidelines'):
-        badges_list.append(f"<span style='background-color: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 600; font-size: 14px; padding: 6px 12px; border-radius: 6px; margin-right: 8px; margin-bottom: 8px; display: inline-block;'>📝 <b>Length / Format:</b> {html.escape(str(entry['guidelines']))}</span>")
+        badges_list.append(f"<span style='background-color: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 600; font-size: 15px; padding: 6px 12px; border-radius: 6px; margin-right: 8px; margin-bottom: 8px; display: inline-block;'>📝 <b>Length / Format:</b> {html.escape(str(entry['guidelines']))}</span>")
     if entry.get('deadline'):
-        badges_list.append(f"<span style='background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 14px; padding: 6px 12px; border-radius: 6px; margin-right: 8px; margin-bottom: 8px; display: inline-block;'>⏰ <b>Deadline:</b> {html.escape(str(entry['deadline']))}</span>")
+        badges_list.append(f"<span style='background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 15px; padding: 6px 12px; border-radius: 6px; margin-right: 8px; margin-bottom: 8px; display: inline-block;'>⏰ <b>Deadline:</b> {html.escape(str(entry['deadline']))}</span>")
 
     rendered_badges = f"<div style='margin-bottom: 12px;'>{''.join(badges_list)}</div>" if badges_list else ""
 
     action_buttons = []
     if entry.get("reg_links"):
         for url in entry.get("reg_links"):
-            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin-right: 10px; margin-top: 10px; display: inline-block;'>🎟️ Author Guidelines / Submit</a>")
+            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin-right: 10px; margin-top: 10px; display: inline-block;'>🎟️ Author Guidelines / Submit</a>")
 
     if entry.get("gen_links"):
         for url in entry.get("gen_links"):
-            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin-right: 10px; margin-top: 10px; display: inline-block;'>🌐 Official Journal Portal</a>")
+            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; margin-right: 10px; margin-top: 10px; display: inline-block;'>🌐 Official Journal Portal</a>")
 
     rendered_buttons = f"<div style='margin-top: 12px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
     
@@ -725,7 +725,7 @@ def render_parsed_doc_entry(entry):
         if valid_notes:
             notes_html = f"<div style='color: #475569; font-size: 18px; line-height: 1.6; margin-top: 10px;'>{'<br>'.join(['• ' + vn for vn in valid_notes])}</div>"
 
-    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 12px; padding: 22px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border-left: 5px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 20px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 14px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 12px 0; color: #1E293B; font-size: 18px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
+    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 12px; padding: 22px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border-left: 5px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 20px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 15px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 12px 0; color: #1E293B; font-size: 20px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_almanac_event_card(ev, is_highlighted=False):
@@ -739,9 +739,9 @@ def render_almanac_event_card(ev, is_highlighted=False):
     else:
         border_style = "border-left: 5px solid #0284C7; background: #FFFFFF;"
 
-    desc_html = f"<p style='margin: 6px 0 0 0; color: #475569; font-size: 16px;'>{desc}</p>" if desc and desc != dept else ""
+    desc_html = f"<p style='margin: 6px 0 0 0; color: #475569; font-size: 18px;'>{desc}</p>" if desc and desc != dept else ""
 
-    card_html = f"""<div style="{border_style} border-radius: 10px; padding: 18px 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.04); border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="color: #64748B; font-size: 14px; font-weight: 600;">{dept}</span></div><h4 style="margin: 0; color: #1E293B; font-size: 18px; font-weight: 700; line-height: 1.4;">{title}</h4><div style="margin-top: 6px; font-size: 16px; color: #334155; font-weight: 500;">🗓️ <b>Date:</b> {date_str}</div>{desc_html}</div>"""
+    card_html = f"""<div style="{border_style} border-radius: 10px; padding: 20px 22px; box-shadow: 0 3px 10px rgba(0,0,0,0.04); border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 18px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="color: #64748B; font-size: 15px; font-weight: 600;">{dept}</span></div><h4 style="margin: 0; color: #1E293B; font-size: 20px; font-weight: 700; line-height: 1.4;">{title}</h4><div style="margin-top: 8px; font-size: 18px; color: #334155; font-weight: 500;">🗓️ <b>Date:</b> {date_str}</div>{desc_html}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
 # --- 5. STREAMLIT FRAMEWORK DESK ---
@@ -936,7 +936,7 @@ with tab_events:
     if today_events:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border: 2px solid #10B981; border-radius: 12px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.15);">
-            <h3 style="margin: 0 0 12px 0; color: #065F46; font-size: 20px; display: flex; align-items: center; gap: 8px;">
+            <h3 style="margin: 0 0 12px 0; color: #065F46; font-size: 22px; display: flex; align-items: center; gap: 8px;">
                 🚨 Today's Ongoing Campus Events
             </h3>
         </div>
@@ -946,7 +946,7 @@ with tab_events:
             render_almanac_event_card(ev, is_highlighted=True)
     else:
         st.markdown("""
-        <div style="background-color: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 18px; margin-bottom: 20px; text-align: center; color: #64748B; font-size: 16px;">
+        <div style="background-color: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 18px; margin-bottom: 20px; text-align: center; color: #64748B; font-size: 18px;">
             ☕ No special college events or assessments scheduled for today. Regular classes and departmental operations are active.
         </div>
         """, unsafe_allow_html=True)
