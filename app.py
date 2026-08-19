@@ -249,26 +249,23 @@ def download_drive_file_bytes(file_id, creds):
         return None
 
 # --- 3. ALMANAC MASTER CALENDAR ENGINE ---
-# Built-in structured records guarantee immediate display
 MASTER_ALMANAC_DATA = [
     ("20/08/2026", "20/08/2026", "Staff Colloquium", "Commerce", "Commerce"),
-    ("20/08/2026", "20/08/2026", "ISR Activity", "Department of Sciences", "Sciences"),
+    ("20/08/2026", "20/08/2026", "ISR activity", "Department of Sciences", "Sciences"),
     ("21/08/2026", "21/08/2026", "Field Visit in Mass Communication", "Department of Social Sciences & Humanities", "Social Sciences & Humanities"),
     ("21/08/2026", "22/08/2026", "Ist Internal Assessment (V Semester)", "All Units / Campus Wide", "All Units / Campus Wide"),
-    ("21/08/2026", "21/08/2026", "Finalizing SQC Team", "IQAC", "IQAC"),
-    ("21/08/2026", "21/08/2026", "Workshop: AI for Fundraising & Investor Pitch Preparation (II Year Alumni Interaction)", "Department of Business Management", "Management"),
-    ("22/08/2026", "22/08/2026", "Community Service Drive", "Student Activity Clubs / NSS", "Student Activity Clubs"),
+    ("21/08/2026", "21/08/2026", "Finalizing SQC team", "IQAC", "IQAC"),
+    ("21/08/2026", "21/08/2026", "Workshop - Session on using AI for fundraising & Investor pitch preparation (II Year Alumni Interaction)", "Department of Business Management", "Management"),
+    ("22/08/2026", "22/08/2026", "Community service", "Student Activity Clubs / NSS", "Student Activity Clubs"),
     ("24/08/2026", "25/08/2026", "Ist Internal Assessment (I Semester)", "All Units / Campus Wide", "All Units / Campus Wide"),
-    ("25/08/2026", "25/08/2026", "Guest Lecture: Biotechnology for Climate-Resilient Agriculture (Sem 5 & Sem 3)", "Department of Sciences", "Sciences"),
-    ("28/08/2026", "28/08/2026", "National Sports Day (Dhyanchand Birthday Celebration)", "Department of Physical Education & Sports", "Physical Education"),
+    ("25/08/2026", "25/08/2026", "Guest lecture on topic 'Biotechnology for Climate-Resilient Agriculture' (Sem 5 and Sem 3)", "Department of Sciences", "Sciences"),
+    ("28/08/2026", "28/08/2026", "National Sports Day (Dhyanchand Birthday on 29th August 2026)", "Department of Physical Education & Sports", "Physical Education"),
     ("28/08/2026", "28/08/2026", "Samskrutha Mahotsavam", "Department of English & Languages", "English & Languages"),
     ("28/08/2026", "28/08/2026", "Department Colloquium", "Commerce", "Commerce"),
-    ("29/08/2026", "29/08/2026", "Industrial Visit", "Department of Sciences", "Sciences"),
-    ("31/08/2026", "31/08/2026", "NIRD Visit & IIMC (Self Driven Activity - III Year)", "Department of Business Management", "Management"),
-    ("31/08/2026", "31/08/2026", "Seminar on Cyber Crime and Digital Personal Data Protection (DPDP) Act", "Department of Sciences", "Sciences"),
-    ("31/08/2026", "31/08/2026", "Guest Lecture on Climate Resilient Agriculture", "Department of Sciences", "Sciences"),
-    ("01/09/2026", "02/09/2026", "Faculty Development Workshop on Research Metrics", "Research & Innovation Cell", "Research & Innovation"),
-    ("03/09/2026", "03/09/2026", "Guest Lecture on Contemporary Macroeconomics", "Commerce & Business Management", "Commerce")
+    ("29/08/2026", "29/08/2026", "Industrial visit", "Department of Sciences", "Sciences"),
+    ("31/08/2026", "31/08/2026", "NIRD visit & IIMC (Self Driven Activity - III Year)", "Department of Business Management", "Management"),
+    ("31/08/2026", "31/08/2026", "Seminar on Cyber crime and Digital Personal Data Protection (DPDP) Act", "Department of Sciences", "Sciences"),
+    ("31/08/2026", "31/08/2026", "Guest lecture on climate resilient agriculture", "Department of Sciences", "Sciences")
 ]
 
 def parse_single_date(s):
@@ -284,13 +281,9 @@ def parse_single_date(s):
     return None
 
 def fetch_almanac_events(file_id, creds):
-    """
-    Extracts rolling events for today and next 14 days, with guaranteed fallback.
-    """
     today = datetime.date.today()
     events_list = []
 
-    # Build standard event list from master records
     for start_str, end_str, title, desc, dept in MASTER_ALMANAC_DATA:
         start_date = parse_single_date(start_str)
         end_date = parse_single_date(end_str) if end_str else start_date
@@ -316,7 +309,6 @@ def fetch_almanac_events(file_id, creds):
             "days_away": days_diff
         })
 
-    # Sort events chronologically
     events_list.sort(key=lambda x: x['start_date'])
     return events_list
 
@@ -749,7 +741,7 @@ def render_almanac_event_card(ev, is_highlighted=False):
         border_style = "border-left: 4px solid #0284C7; background: #FFFFFF;"
         badge_tag = f"<span style='background-color: #E0F2FE; color: #0369A1; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;'>📅 {days_away_txt}</span>"
 
-    desc_html = f"<p style='margin: 4px 0 0 0; color: #64748B; font-size: 12px;'>{desc}</p>" if desc else ""
+    desc_html = f"<p style='margin: 4px 0 0 0; color: #64748B; font-size: 12px;'>{desc}</p>" if desc and desc != dept else ""
 
     card_html = f"""<div style="{border_style} border-radius: 8px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 12px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">{badge_tag}<span style="color: #64748B; font-size: 11px; font-weight: 600;">{dept}</span></div><h4 style="margin: 0; color: #1E293B; font-size: 14px; font-weight: 700; line-height: 1.4;">{title}</h4><div style="margin-top: 4px; font-size: 12px; color: #334155; font-weight: 500;">🗓️ <b>Date:</b> {date_str}</div>{desc_html}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
@@ -958,13 +950,13 @@ with tab_announcements:
         upcoming_2w_events = [ev for ev in almanac_events if ev['is_upcoming_2weeks']]
 
         if upcoming_2w_events:
-            st.markdown(f"##### 📅 **Upcoming Activities (Next 2 Weeks: {len(upcoming_2w_events)} Events)**")
+            st.markdown(f"##### 📅 **Upcoming Activities (Next 2 Weeks: {len(upcoming_2w_events)} Events Scheduled)**")
             for ev in upcoming_2w_events:
                 render_almanac_event_card(ev, is_highlighted=False)
         elif not today_events:
             st.info("No Almanac events scheduled for the next 14 days.")
 
-        # 3. Complementary Flyers / Posters from Drive
+        # 3. Event Posters & Circulars from Drive
         if campus_files:
             st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
             st.markdown("##### 📁 **Event Posters & Circulars**")
