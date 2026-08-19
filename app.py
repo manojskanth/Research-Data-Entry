@@ -810,16 +810,8 @@ tab_gallery, tab_journals, tab_events, tab_explorer, tab_submit, tab_document, t
 
 # --- TAB 1: RESEARCH HALL OF FAME ---
 with tab_gallery:
-    def get_timestamp_sort_key(row):
-        # Index 0 or first column is typically timestamp if present, otherwise row index order
-        try:
-            return pd.to_datetime(str(row.iloc[0]))
-        except:
-            return pd.Timestamp.min
-
     valid_publications = []
     if not res_df.empty and len(res_df) > 0:
-        # Sort DataFrame rows by timestamp descending to get the newest entries first
         try:
             res_df_sorted = res_df.copy()
             res_df_sorted['__ts'] = pd.to_datetime(res_df_sorted.iloc[:, 0], errors='coerce')
@@ -832,7 +824,6 @@ with tab_gallery:
 
     if valid_publications:
         ticker_items = []
-        # Take the top 10 most recently added research entries based on timestamp
         for row in valid_publications[:10]:
             f_auth = row.iloc[0] if len(row) > 0 else "Faculty"
             f_type = row.iloc[2] if len(row) > 2 else "Publication"
