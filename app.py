@@ -248,51 +248,40 @@ def download_drive_file_bytes(file_id, creds):
         return None
 
 def extract_announcements_from_docx(file_bytes):
-    """Parses Word document (.docx) paragraphs & tables, structuring metadata cleanly."""
+    """Intelligently parses Word document (.docx) tables & paragraphs into rich structured notice cards."""
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
-        current_title = ""
-        current_lines = []
         current_dept = "All Units / Campus Wide"
         current_category = "CALL FOR PAPERS / JOURNAL"
-        current_reg_deadline = ""
-        current_sub_deadline = ""
-        current_reg_links = []
-        current_general_links = []
 
         def parse_text_meta(text):
             urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', text)
-            reg_urls = []
-            gen_urls = []
+            reg_urls, gen_urls = [], []
             for u in urls:
                 if any(k in u.lower() or k in text.lower() for k in ["register", "registration", "form", "apply", "ticket", "eventbrite", "forms.gle", "guide", "author", "submit"]):
                     reg_urls.append(u)
                 else:
                     gen_urls.append(u)
 
-            reg_deadline = ""
-            sub_deadline = ""
+            reg_deadline, sub_deadline = "", ""
             
-            # Specific Registration Deadline Regex
             reg_match = re.search(r'(?:registration deadline|last date for registration|registration closes?|early bird registration|register by)[\s\:\-]+([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]+,?\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})', text, re.IGNORECASE)
             if reg_match:
                 reg_deadline = reg_match.group(0).strip()
 
-            # Submission / General Deadline Regex
             sub_match = re.search(r'(?:paper submission deadline|submission deadline|last date for submission|abstract deadline|due date|important dates?)[\s\:\-]+([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}|[0-9]{1,2}\s+[A-Za-z]+,?\s+[0-9]{4}|[A-Za-z]+\s+[0-9]{1,2},?\s+[0-9]{4})', text, re.IGNORECASE)
             if sub_match and not reg_deadline:
                 sub_deadline = sub_match.group(0).strip()
 
             return reg_urls, gen_urls, reg_deadline, sub_deadline
 
-        # 1. Parse Paragraphs
+        # 1. First Pass: Detect Department & Category Context from Document Headers
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt:
                 continue
 
-            # Detect department tag
             dept_match = re.search(r'\[(.*?)\]|Department of\s+([A-Za-z &]+)', txt, re.IGNORECASE)
             if dept_match:
                 detected = dept_match.group(1) or dept_match.group(2)
@@ -301,96 +290,123 @@ def extract_announcements_from_docx(file_bytes):
                         current_dept = d
                         break
 
-            # If the paragraph is purely a Section/Category Header, update state and DO NOT make a standalone card
-            is_header_banner = any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "upcoming conferences"])
-            if is_header_banner and (len(txt) < 80 or ":" in txt):
+            # Update category banner if encountered
+            if any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "upcoming conferences"]):
                 current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt.strip().upper()
-                continue  # Skip card creation for section banners
 
-            r_urls, g_urls, r_dl, s_dl = parse_text_meta(txt)
-            if r_urls: current_reg_links.extend(r_urls)
-            if g_urls: current_general_links.extend(g_urls)
-            if r_dl and not current_reg_deadline: current_reg_deadline = r_dl
-            if s_dl and not current_sub_deadline: current_sub_deadline = s_dl
-
-            if p.style.name.startswith('Heading') or (p.runs and p.runs[0].bold and len(txt) < 120):
-                if current_title and current_lines:
-                    entries.append({
-                        "title": current_title,
-                        "content": "\n".join(current_lines),
-                        "dept": current_dept,
-                        "category": current_category,
-                        "reg_deadline": current_reg_deadline,
-                        "sub_deadline": current_sub_deadline,
-                        "reg_links": list(set(current_reg_links)),
-                        "gen_links": list(set(current_general_links))
-                    })
-                    current_lines, current_reg_links, current_general_links, current_reg_deadline, current_sub_deadline = [], [], [], "", ""
-                current_title = txt
-            else:
-                if not current_title:
-                    current_title = txt[:60] + "..." if len(txt) > 60 else txt
-                cleaned_line = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', txt).strip()
-                if cleaned_line:
-                    current_lines.append(cleaned_line)
-
-        # Append last paragraph entry if valid
-        if current_title and current_lines:
-            entries.append({
-                "title": current_title,
-                "content": "\n".join(current_lines),
-                "dept": current_dept,
-                "category": current_category,
-                "reg_deadline": current_reg_deadline,
-                "sub_deadline": current_sub_deadline,
-                "reg_links": list(set(current_reg_links)),
-                "gen_links": list(set(current_general_links))
-            })
-
-        # 2. Parse Tables
+        # 2. Parse Tables (Where all journal & conference details live)
         for table in doc.tables:
             for row in table.rows:
                 cells = [c.text.strip() for c in row.cells]
-                valid_cells = [c for c in cells if c and c.lower() not in ["data point not found", "n/a", "na", "-", "|"]]
+                valid_cells = [c for c in cells if c and c.lower() not in ["data point not found", "n/a", "na", "-", "|", "nil", "none"]]
                 
                 if len(valid_cells) >= 2:
-                    t_title = valid_cells[0]
-                    body_items = []
-                    found_urls = []
-                    t_reg_dl = ""
-                    t_sub_dl = ""
+                    joined_lower = " ".join(valid_cells).lower()
+                    if any(h in joined_lower for h in ["s.no", "serial no", "journal title", "journal name", "name of journal", "paper title", "submission link"]) and len(valid_cells) <= 3:
+                        continue  # Skip table header row
 
-                    for item in valid_cells[1:]:
-                        r_u, g_u, r_d, s_d = parse_text_meta(item)
-                        found_urls.extend(r_u + g_u)
-                        if r_d and not t_reg_dl: t_reg_dl = r_d
-                        if s_d and not t_sub_dl: t_sub_dl = s_d
-                        
-                        cleaned_item = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', item).strip()
-                        if cleaned_item and cleaned_item not in ["|", "-", "•"]:
-                            body_items.append(cleaned_item)
+                    all_urls = []
+                    text_pieces = []
+                    for c in valid_cells:
+                        urls_in_c = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', c)
+                        all_urls.extend(urls_in_c)
+                        non_url_text = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', c).strip(' \t\n\r|•-:')
+                        if non_url_text and non_url_text.lower() not in ["data point not found", "n/a", "na", "-", "|"]:
+                            text_pieces.append(non_url_text)
 
-                    t_dept = current_dept
+                    title = ""
+                    frequency_val = ""
+                    guidelines_val = ""
+                    deadlines_val = ""
+                    other_details = []
+
+                    for piece in text_pieces:
+                        p_lower = piece.lower()
+                        if any(k in p_lower for k in ["continuous", "bi-annual", "biannual", "annual", "quarterly", "monthly", "year-round", "open year-round", "triannual", "half-yearly", "issues/year", "frequency"]):
+                            frequency_val = piece
+                        elif any(k in p_lower for k in ["word", "spacing", "tnr", "font", "apa", "ieee", "mla", "pages", "guideline", "format", "manuscript", "template"]):
+                            guidelines_val = piece
+                        elif any(k in p_lower for k in ["deadline", "due date", "last date", "submission date", "submit by", "register by"]):
+                            deadlines_val = piece
+                        else:
+                            if not title and len(piece) > 2 and not piece.isdigit():
+                                title = piece
+                            else:
+                                other_details.append(piece)
+
+                    if not title:
+                        if all_urls:
+                            first_u = all_urls[0]
+                            clean_dom = re.sub(r'^https?:\/\/(www\.)?', '', first_u).split('/')[0]
+                            title = f"Journal / CFP Portal ({clean_dom})"
+                        elif text_pieces:
+                            title = text_pieces[0]
+                        else:
+                            title = "Research Announcement"
+
+                    reg_links = []
+                    gen_links = []
+                    for u in all_urls:
+                        u_clean = u if u.startswith("http") else f"https://{u}"
+                        if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register", "form", "apply", "ticket", "forms.gle"]):
+                            reg_links.append(u_clean)
+                        else:
+                            gen_links.append(u_clean)
+
+                    content_lines = []
+                    if frequency_val:
+                        content_lines.append(f"🔄 **Publication Frequency / Cycle:** {frequency_val}")
+                    if guidelines_val:
+                        content_lines.append(f"📝 **Manuscript Guidelines & Length:** {guidelines_val}")
+                    if deadlines_val:
+                        content_lines.append(f"⏰ **Important Dates:** {deadlines_val}")
+                    for od in other_details:
+                        if od != frequency_val and od != guidelines_val and od != title:
+                            content_lines.append(f"• {od}")
+
+                    final_content = "\n".join(content_lines) if content_lines else "• Open for continuous submission and review."
+
+                    dept = current_dept
                     for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
-                        if d.lower() in (t_title + " " + " ".join(body_items)).lower():
-                            t_dept = d
+                        if d.lower() in (title + " " + final_content).lower():
+                            dept = d
                             break
 
-                    formatted_content = "\n".join([f"• {b}" for b in body_items if b])
-
-                    reg_action_links = [u for u in found_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register", "forms.gle"])]
-                    portal_action_links = [u for u in found_urls if u not in reg_action_links]
-
                     entries.append({
-                        "title": t_title, 
-                        "content": formatted_content if formatted_content else "Open for continuous submission and review.", 
-                        "dept": t_dept, 
+                        "title": title, 
+                        "content": final_content, 
+                        "dept": dept, 
                         "category": current_category,
-                        "reg_deadline": t_reg_dl,
-                        "sub_deadline": t_sub_dl,
-                        "reg_links": list(set(reg_action_links)),
-                        "gen_links": list(set(portal_action_links))
+                        "reg_deadline": deadlines_val if "register" in deadlines_val.lower() else "",
+                        "sub_deadline": deadlines_val if "register" not in deadlines_val.lower() and deadlines_val else "",
+                        "reg_links": list(set(reg_links)),
+                        "gen_links": list(set(gen_links))
                     })
+
+        # 3. Parse Substantive Paragraphs (Only genuine non-table announcements)
+        for p in doc.paragraphs:
+            txt = p.text.strip()
+            # Strict filter: Ignore metadata, update timestamps, headers, and one-liners
+            if not txt or len(txt) < 35:
+                continue
+            if any(k in txt.lower() for k in ["updated on", "compiled by", "ugc care listed", "scopus", "disclaimer", "page ", "table of contents", "st. mary"]):
+                continue
+
+            r_urls, g_urls, r_dl, s_dl = parse_text_meta(txt)
+            cleaned_text = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', txt).strip()
+            
+            if cleaned_text:
+                title_line = cleaned_text[:75] + "..." if len(cleaned_text) > 75 else cleaned_text
+                entries.append({
+                    "title": title_line,
+                    "content": cleaned_text,
+                    "dept": current_dept,
+                    "category": current_category,
+                    "reg_deadline": r_dl,
+                    "sub_deadline": s_dl,
+                    "reg_links": list(set(r_urls)),
+                    "gen_links": list(set(g_urls))
+                })
 
     except Exception:
         pass
@@ -685,13 +701,13 @@ def render_parsed_doc_entry(entry):
     if entry.get('reg_deadline'):
         badges_html.append(f"""
         <div style="background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
-            🎟️ <b>Registration Deadline:</b> {entry.get('reg_deadline')}
+            🎟️ <b>Registration:</b> {entry.get('reg_deadline')}
         </div>
         """)
     if entry.get('sub_deadline'):
         badges_html.append(f"""
         <div style="background-color: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
-            ⏰ <b>Submission Deadline:</b> {entry.get('sub_deadline')}
+            ⏰ <b>Submission:</b> {entry.get('sub_deadline')}
         </div>
         """)
 
@@ -871,7 +887,7 @@ with tab_gallery:
     else:
         st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
 
-# --- TAB 2: LIVE ANNOUNCEMENTS & EVENTS (TWO-COLUMN BULLETIN WITH REGISTRATION DEADLINES & URLS) ---
+# --- TAB 2: LIVE ANNOUNCEMENTS & EVENTS (TWO-COLUMN BULLETIN WITH CLEANED JOURNAL CARDS) ---
 with tab_announcements:
     st.subheader("📢 Campus Bulletin & Upcoming Opportunities")
     st.markdown("Live repository of posters, call for papers, upcoming conferences, and departmental activities.")
