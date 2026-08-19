@@ -518,8 +518,15 @@ def fetch_sheet_records(sheet_name, creds):
         max_cols = len(headers)
         data = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows[1:]]
         df = pd.DataFrame(data, columns=headers)
-        # Reverse rows so newest entries appended at the bottom appear first
-        return df.iloc[::-1].reset_index(drop=True)
+        
+        # Sort strictly by the timestamp column (assumed to be index 0) converted to datetime descending
+        try:
+            df['__parsed_timestamp'] = pd.to_datetime(df.iloc[:, 0], errors='coerce')
+            df = df.sort_values(by='__parsed_timestamp', ascending=False, na_position='last').drop(columns=['__parsed_timestamp'])
+        except Exception:
+            df = df.iloc[::-1].reset_index(drop=True)
+            
+        return df.reset_index(drop=True)
     except Exception:
         return pd.DataFrame()
 
