@@ -246,20 +246,15 @@ def download_drive_file_bytes(file_id, creds):
     except Exception:
         return None
 
+# --- 3. PRECISION WORD DOCUMENT TABLE & DOSSIER EXTRACTOR ---
 def extract_announcements_from_docx(file_bytes):
-    """
-    Robust table parser:
-    1. Extracts hidden embedded XML hyperlinks in cells.
-    2. Builds one record per table row (with title, metadata, and buttons).
-    3. Rejects fragments and isolated cell lines.
-    """
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
         current_dept = "All Units / Campus Wide"
         current_category = "UGC CARE / INDEXED JOURNAL"
 
-        # 1. Detect Category Banner & Department from Headings
+        # 1. Scan for overall Category & Department context from document header
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt:
@@ -276,12 +271,11 @@ def extract_announcements_from_docx(file_bytes):
             if any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "upcoming conferences"]):
                 current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt[:40].strip().upper()
 
-        # Helper function to extract text and embedded links from a table cell XML
-        def get_cell_data(cell):
-            text = cell.text.strip()
-            urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', text)
+        def get_cell_text_and_links(cell):
+            raw_t = cell.text.strip()
+            urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', raw_t)
             
-            # Extract underlying XML hyperlink target if present
+            # Extract underlying XML hyperlinks
             try:
                 for rel in cell._tc.xpath('.//w:hyperlink'):
                     r_id = rel.get(qn('r:id'))
@@ -292,85 +286,67 @@ def extract_announcements_from_docx(file_bytes):
             except Exception:
                 pass
                 
-            clean_text = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', text).strip(' \t\n\r|•-:')
-            return clean_text, list(set(urls))
+            clean_t = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', raw_t).strip(' \t\n\r|•-:')
+            return clean_t, list(set(urls))
 
-        # 2. Parse Word Document Tables Row-By-Row
+        # 2. Process Tables: Exactly one card per table row
         for table in doc.tables:
             if not table.rows or len(table.rows) < 2:
                 continue
 
-            # Process data rows (skip header row 0)
             for row_idx, row in enumerate(table.rows):
                 if row_idx == 0:
                     continue  # Skip table header row
 
-                row_texts = []
+                row_items = []
                 row_urls = []
-                
                 for cell in row.cells:
-                    c_txt, c_urls = get_cell_data(cell)
+                    c_txt, c_urls = get_cell_text_and_links(cell)
                     if c_txt and c_txt.lower() not in ["data point not found", "n/a", "na", "-", "|", "nil"]:
-                        # Avoid duplicates from horizontally merged cells
-                        if not row_texts or c_txt != row_texts[-1]:
-                            row_texts.append(c_txt)
+                        if not row_items or c_txt != row_items[-1]:
+                            row_items.append(c_txt)
                     row_urls.extend(c_urls)
 
                 row_urls = list(set(row_urls))
                 
-                # Check for table header repeat
-                joined_text = " ".join(row_texts).lower()
-                if sum(1 for hw in ["journal name", "journal title", "frequency", "guidelines", "formatting brief", "s.no", "serial", "link"] if hw in joined_text) >= 2:
+                # Check for repeated table headers
+                joined_row_txt = " ".join(row_items).lower()
+                if sum(1 for hw in ["journal name", "journal title", "frequency", "guidelines", "formatting brief", "s.no", "serial", "submission link"] if hw in joined_row_txt) >= 2:
                     continue
 
-                if not row_texts and not row_urls:
+                if not row_items and not row_urls:
                     continue
 
-                # Identify fields
                 journal_title = ""
                 frequency_val = ""
-                guidelines_val = ""
-                deadlines_val = ""
-                other_details = []
+                guideline_val = ""
+                deadline_val = ""
+                notes = []
 
-                for item in row_texts:
-                    item_low = item.lower()
-                    if item_low in ["formatting brief", "frequency", "guidelines", "submission link"]:
+                for item in row_items:
+                    item_l = item.lower()
+                    if item_l in ["formatting brief", "frequency", "guidelines", "submission link", "status"]:
                         continue
 
-                    if any(k in item_low for k in ["continuous", "bi-annual", "biannual", "annual", "quarterly", "monthly", "year-round", "open year-round", "triannual", "half-yearly", "issues/year"]):
+                    if any(k in item_l for k in ["continuous", "bi-annual", "biannual", "annual", "quarterly", "monthly", "year-round", "open year-round", "triannual", "half-yearly"]):
                         frequency_val = item
-                    elif any(k in item_low for k in ["word", "spacing", "tnr", "font", "apa", "ieee", "mla", "pages", "template", "manuscript"]) and len(item) > 8:
-                        guidelines_val = item
-                    elif any(k in item_low for k in ["deadline", "due date", "last date", "submission date", "submit by", "register by"]):
-                        deadlines_val = item
+                    elif any(k in item_l for k in ["word", "spacing", "tnr", "font", "apa", "ieee", "mla", "pages", "template", "manuscript"]) and len(item) > 8:
+                        guideline_val = item
+                    elif any(k in item_l for k in ["deadline", "due date", "last date", "submission date", "submit by", "register by"]):
+                        deadline_val = item
                     else:
                         if not journal_title and len(item) > 2 and not item.isdigit():
                             journal_title = item
                         else:
-                            other_details.append(item)
+                            notes.append(item)
 
-                # Reject fragments: a valid journal card MUST have a valid title
+                # GUARANTEE: Never create a card if title is missing or only a frequency value
                 if not journal_title:
                     if row_urls:
                         clean_dom = re.sub(r'^https?:\/\/(www\.)?', '', row_urls[0]).split('/')[0]
                         journal_title = f"Journal Publication Portal ({clean_dom})"
                     else:
-                        continue  # Skip orphan fragment
-
-                # Assemble Details Body
-                body_parts = []
-                if frequency_val:
-                    body_parts.append(f"🔄 **Publication Frequency / Cycle:** {frequency_val}")
-                if guidelines_val:
-                    body_parts.append(f"📝 **Manuscript Guidelines & Length:** {guidelines_val}")
-                if deadlines_val:
-                    body_parts.append(f"⏰ **Important Dates:** {deadlines_val}")
-                for note in other_details:
-                    if note not in [journal_title, frequency_val, guidelines_val, deadlines_val] and note.lower() != "formatting brief":
-                        body_parts.append(f"• {note}")
-
-                final_content = "\n".join(body_parts) if body_parts else "• Open for continuous peer review and publication."
+                        continue  # Discard fragment row
 
                 # Separate Action Links
                 reg_links = [u if u.startswith("http") else f"https://{u}" for u in row_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register", "form", "apply", "ticket", "forms.gle"])]
@@ -379,19 +355,45 @@ def extract_announcements_from_docx(file_bytes):
                 # Match Department
                 dept = current_dept
                 for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
-                    if d.lower() in (journal_title + " " + final_content).lower():
+                    if d.lower() in (journal_title + " " + " ".join(notes)).lower():
                         dept = d
                         break
 
                 entries.append({
                     "title": journal_title,
-                    "content": final_content,
+                    "frequency": frequency_val,
+                    "guidelines": guideline_val,
+                    "deadline": deadline_val,
+                    "notes": notes,
                     "dept": dept,
                     "category": current_category,
-                    "reg_deadline": deadlines_val if "register" in deadlines_val.lower() else "",
-                    "sub_deadline": deadlines_val if "register" not in deadlines_val.lower() and deadlines_val else "",
                     "reg_links": list(set(reg_links)),
                     "gen_links": list(set(gen_links))
+                })
+
+        # 3. Substantive Standalone Paragraphs ONLY (e.g. detailed conference announcements)
+        for p in doc.paragraphs:
+            txt = p.text.strip()
+            if not txt or len(txt) < 80:
+                continue
+            if any(k in txt.lower() for k in ["updated on", "compiled by", "ugc care listed", "scopus", "disclaimer", "formatting brief", "table of contents", "st. mary"]):
+                continue
+
+            urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', txt)
+            cleaned_p = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', txt).strip()
+            
+            if cleaned_p and len(cleaned_p) >= 60:
+                p_title = cleaned_p[:70] + "..." if len(cleaned_p) > 70 else cleaned_p
+                entries.append({
+                    "title": p_title,
+                    "frequency": "",
+                    "guidelines": "",
+                    "deadline": "",
+                    "notes": [cleaned_p],
+                    "dept": current_dept,
+                    "category": current_category,
+                    "reg_links": [u if u.startswith("http") else f"https://{u}" for u in urls if any(k in u.lower() for k in ["register", "submit", "guide"])],
+                    "gen_links": [u if u.startswith("http") else f"https://{u}" for u in urls if not any(k in u.lower() for k in ["register", "submit", "guide"])]
                 })
 
     except Exception:
@@ -455,7 +457,7 @@ def fetch_sheet_records(sheet_name, creds):
     except Exception:
         return pd.DataFrame()
 
-# --- 3. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
+# --- 4. THE WORD DOCUMENT NARRATIVE COMPILER ENGINE ---
 def build_monthly_word_document(name_focus, active_month, active_year, creds):
     doc = Document()
     doc.styles['Normal'].font.name = 'Times New Roman'
@@ -599,7 +601,7 @@ def styled_block(format_text, example_text):
 """.strip()
     st.markdown(html_string, unsafe_allow_html=True)
 
-# --- 4. WEBSITE FRONT-PAGE & ANNOUNCEMENT CARDS ---
+# --- 5. WEBSITE FRONT-PAGE & ANNOUNCEMENT CARDS ---
 def render_scrolling_ticker(announcements):
     ticker_text = " &nbsp;&nbsp;&nbsp; 🌟 &nbsp;&nbsp;&nbsp; ".join(announcements)
     ticker_html = f"""
@@ -683,46 +685,59 @@ def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
 def render_parsed_doc_entry(entry):
     category_label = entry.get('category', 'CALL FOR PAPERS / JOURNAL')
     
+    # Metadata Badges (Frequency, Guidelines, Deadlines)
     badges_html = []
-    if entry.get('reg_deadline'):
+    if entry.get('frequency'):
         badges_html.append(f"""
-        <div style="background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
-            🎟️ <b>Registration:</b> {entry.get('reg_deadline')}
+        <div style="background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
+            🔄 <b>Cycle:</b> {entry.get('frequency')}
         </div>
         """)
-    if entry.get('sub_deadline'):
+    if entry.get('guidelines'):
         badges_html.append(f"""
-        <div style="background-color: #FEF3C7; color: #D97706; border: 1px solid #FDE68A; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
-            ⏰ <b>Submission:</b> {entry.get('sub_deadline')}
+        <div style="background-color: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
+            📝 <b>Length:</b> {entry.get('guidelines')}
+        </div>
+        """)
+    if entry.get('deadline'):
+        badges_html.append(f"""
+        <div style="background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;">
+            ⏰ <b>Deadline:</b> {entry.get('deadline')}
         </div>
         """)
 
+    # Interactive Action Buttons
     action_buttons = []
     if entry.get("reg_links"):
         for url in entry.get("reg_links"):
-            clean_url = url if url.startswith("http") else f"https://{url}"
-            btn_label = "📖 Author Guidelines / Submission" if "guide" in url.lower() else "🎟️ Register Here (Registration Link)"
+            btn_label = "📖 Author Guidelines / Submit" if "guide" in url.lower() else "🎟️ Submission Portal"
             action_buttons.append(f"""
-            <a href='{clean_url}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 12px; margin-right: 8px; margin-top: 8px; display: inline-block; box-shadow: 0 2px 6px rgba(225, 29, 72, 0.25);'>
+            <a href='{url}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 5px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 6px; display: inline-block;'>
                 {btn_label}
             </a>
             """)
 
     if entry.get("gen_links"):
         for url in entry.get("gen_links"):
-            clean_url = url if url.startswith("http") else f"https://{url}"
             action_buttons.append(f"""
-            <a href='{clean_url}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 8px; display: inline-block;'>
-                🌐 Official Journal / Portal
+            <a href='{url}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 5px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 6px; display: inline-block;'>
+                🌐 Official Portal
             </a>
             """)
 
     rendered_badges = f"<div style='margin-bottom: 6px;'>{''.join(badges_html)}</div>" if badges_html else ""
     rendered_buttons = f"<div style='margin-top: 10px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
+    
+    # Render any additional textual notes cleanly
+    notes_html = ""
+    if entry.get("notes"):
+        cleaned_notes = [n for n in entry["notes"] if n != entry.get("title") and len(n) > 5]
+        if cleaned_notes:
+            notes_html = f"<div style='color: #475569; font-size: 12.5px; line-height: 1.5; margin-top: 6px;'>{'<br>'.join(['• ' + n for n in cleaned_notes])}</div>"
 
     card_html = f"""
-    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;">
                 {category_label}
             </span>
@@ -730,15 +745,13 @@ def render_parsed_doc_entry(entry):
         </div>
         <h4 style="margin: 0 0 6px 0; color: #1E293B; font-size: 14px; font-weight: 700; line-height: 1.4;">{entry.get('title')}</h4>
         {rendered_badges}
-        <div style="color: #475569; font-size: 12.5px; line-height: 1.6; background-color: #F8FAFC; padding: 8px 12px; border-radius: 6px; border: 1px solid #F1F5F9; white-space: pre-line;">
-            {entry.get('content')}
-        </div>
+        {notes_html}
         {rendered_buttons}
     </div>
     """
     st.markdown(card_html, unsafe_allow_html=True)
 
-# --- 5. STREAMLIT FRAMEWORK DESK ---
+# --- 6. STREAMLIT FRAMEWORK DESK ---
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "logged_email" not in st.session_state: st.session_state.logged_email = ""
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
@@ -873,7 +886,7 @@ with tab_gallery:
     else:
         st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
 
-# --- TAB 2: LIVE ANNOUNCEMENTS & EVENTS (TWO-COLUMN BULLETIN WITH CLEANED JOURNAL CARDS) ---
+# --- TAB 2: LIVE ANNOUNCEMENTS & EVENTS (TWO-COLUMN BULLETIN) ---
 with tab_announcements:
     st.subheader("📢 Campus Bulletin & Upcoming Opportunities")
     st.markdown("Live repository of posters, call for papers, upcoming conferences, and departmental activities.")
@@ -918,7 +931,7 @@ with tab_announcements:
         if parsed_docx_entries:
             matching_docx_entries = [
                 e for e in parsed_docx_entries 
-                if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in e["dept"].lower() or selected_unit.lower() in (e["title"] + e["content"]).lower()
+                if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in e["dept"].lower() or selected_unit.lower() in (e["title"] + " ".join(e["notes"])).lower()
             ]
             for entry in matching_docx_entries:
                 render_parsed_doc_entry(entry)
@@ -1189,7 +1202,7 @@ with tab_submit:
                         st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
                         st.rerun()
 
-# --- TAB 5: MONTHLY GENERATOR ---
+# --- 7. MONTHLY GENERATOR ---
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
@@ -1215,7 +1228,7 @@ with tab_document:
             st.success(f"🎯 Document synchronized into your Drive repository folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
-# --- TAB 6: ADMIN CONTROL ---
+# --- 8. ADMIN CONTROL ---
 with tab_admin:
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
         st.toggle(
