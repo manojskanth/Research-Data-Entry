@@ -9,6 +9,7 @@ import base64
 import os
 import re
 import html
+import urllib.request
 import pandas as pd
 from docx import Document
 from docx.shared import Pt
@@ -17,6 +18,7 @@ from docx.oxml.ns import qn
 # --- 1. CORE SYSTEM CONFIGURATION ---
 MASTER_SHEET_ID = st.secrets["MASTER_SHEET_ID"]
 ALMANAC_SHEET_ID = "1ByouwZVNzQRtQsFLZLR9wppXKwakbczR"
+ALMANAC_GID = "771144646"
 
 RESEARCH_EVENTS_FOLDER_ID = "1UZxcyKw3RgmjyNV7eyIgwhzOkovB5fhF"
 CAMPUS_ACTIVITIES_FOLDER_ID = "1EvUOvAqGD_aLCcCiuD3rHU0ra-ZZiKnS"
@@ -248,27 +250,7 @@ def download_drive_file_bytes(file_id, creds):
     except Exception:
         return None
 
-# --- 3. UNIVERSAL ALMANAC EXTRACTOR ENGINE ---
-def parse_strict_or_range_date(text):
-    """
-    Parses dates like '20/08/2026', '21/08/2026 to 22/08/2026', '28th August 2026'.
-    Returns (start_date, end_date) or (None, None).
-    """
-    if not text:
-        return None, None
-    s = str(text).strip()
-
-    # Split ranges if present
-    range_match = re.search(r'([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})\s*(?:to|\-|till|until)\s*([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})', s, re.IGNORECASE)
-    if range_match:
-        d1 = parse_single_date(range_match.group(1))
-        d2 = parse_single_date(range_match.group(2))
-        return d1, d2
-
-    # Single date
-    single = parse_single_date(s)
-    return single, single
-
+# --- 3. ROBUST ALMANAC PARSER & DATE WINDOW MATCHER ---
 def parse_single_date(s):
     if not s:
         return None
@@ -276,7 +258,6 @@ def parse_single_date(s):
     s_clean = re.sub(r'^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*[\,\s\-]*', '', s_clean, flags=re.IGNORECASE).strip()
     s_clean = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', s_clean, flags=re.IGNORECASE)
 
-    # 1. Regex DD/MM/YYYY or DD-MM-YYYY
     m = re.search(r'([0-9]{1,2})[\/\-\.]([0-9]{1,2})[\/\-\.]([0-9]{2,4})', s_clean)
     if m:
         try:
@@ -286,7 +267,6 @@ def parse_single_date(s):
         except Exception:
             pass
 
-    # 2. Text Month Formats
     patterns = [
         r"%d %B %Y", r"%d %b %Y", r"%B %d, %Y", r"%b %d, %Y",
         r"%d-%B-%Y", r"%d-%b-%Y", r"%Y-%m-%d"
@@ -298,8 +278,21 @@ def parse_single_date(s):
             pass
     return None
 
+def parse_strict_or_range_date(text):
+    if not text:
+        return None, None
+    s = str(text).strip()
+
+    range_match = re.search(r'([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})\s*(?:to|\-|till|until)\s*([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})', s, re.IGNORECASE)
+    if range_match:
+        d1 = parse_single_date(range_match.group(1))
+        d2 = parse_single_date(range_match.group(2))
+        return d1, d2
+
+    single = parse_single_date(s)
+    return single, single
+
 def normalize_almanac_department(raw_text):
-    """Maps Almanac department text to standardized department and club options."""
     if not raw_text:
         return "All Units / Campus Wide"
     txt_lower = str(raw_text).strip().lower()
@@ -347,91 +340,118 @@ def normalize_almanac_department(raw_text):
 
 def fetch_almanac_events(sheet_id, creds):
     """
-    Scans every tab in the Almanac Sheet workbook, extracting all events,
-    tagging Today's events and the rolling 2-week window.
+    Extracts all Almanac records via Sheets API with automatic CSV fallback,
+    parsing concatenated entries, dates, spans, and departments.
     """
-    events_list = []
-    today = datetime.date.today()
-
+    raw_rows = []
+    
+    # 1. Google Sheets API
     try:
         sheets_service = build('sheets', 'v4', credentials=creds)
         spreadsheet_meta = sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
         sheets = spreadsheet_meta.get('sheets', [])
-
+        
+        target_sheet_title = sheets[0]['properties']['title']
         for s in sheets:
-            sheet_title = s['properties']['title']
-            res = sheets_service.spreadsheets().values().get(
-                spreadsheetId=sheet_id,
-                range=f"'{sheet_title}'!A1:Z500"
-            ).execute()
-            rows = res.get('values', [])
-            
-            if not rows or len(rows) < 2:
-                continue
+            if str(s['properties'].get('sheetId')) == str(ALMANAC_GID):
+                target_sheet_title = s['properties']['title']
+                break
 
-            for r in rows:
-                if not r:
-                    continue
-
-                # Scan row for date patterns
-                start_date, end_date = None, None
-                date_cell_str = ""
-
-                for cell in r:
-                    cand_start, cand_end = parse_strict_or_range_date(str(cell).strip())
-                    if cand_start:
-                        start_date, end_date = cand_start, cand_end
-                        date_cell_str = str(cell).strip()
-                        break
-
-                if not start_date:
-                    continue
-
-                # Find event title and department from remaining non-date cells
-                other_cells = [str(c).strip() for c in r if str(c).strip() and str(c).strip() != date_cell_str]
-                # Filter out weekday names
-                meaningful_cells = [
-                    c for c in other_cells 
-                    if c.lower() not in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "monday/tuesday", "friday/saturday", "day", "date", "s.no", "sl.no", "-"]
-                ]
-
-                if not meaningful_cells:
-                    continue
-
-                event_title = meaningful_cells[0]
-                dept_hint = " ".join(meaningful_cells[1:]) if len(meaningful_cells) > 1 else ""
-
-                if not event_title or event_title.lower() in ["nil", "none", "holiday", "sunday", "event", "particulars"]:
-                    continue
-
-                matched_dept = normalize_almanac_department(dept_hint + " " + event_title)
-
-                # Date comparison against today (Rolling 14-Day Calendar)
-                is_today = False
-                is_upcoming_2weeks = False
-                days_diff = (start_date - today).days
-
-                if end_date and start_date <= today <= end_date:
-                    is_today = True
-                elif start_date == today:
-                    is_today = True
-                elif 0 < days_diff <= 14:
-                    is_upcoming_2weeks = True
-
-                events_list.append({
-                    "title": event_title,
-                    "date_display": date_cell_str if date_cell_str else start_date.strftime("%d/%m/%Y"),
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "dept": matched_dept,
-                    "description": dept_hint if dept_hint and dept_hint != matched_dept else "",
-                    "is_today": is_today,
-                    "is_upcoming_2weeks": is_upcoming_2weeks,
-                    "days_away": days_diff
-                })
-
+        res = sheets_service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"'{target_sheet_title}'!A1:Z1000"
+        ).execute()
+        raw_rows = res.get('values', [])
     except Exception:
         pass
+
+    # 2. Public CSV stream fallback
+    if not raw_rows:
+        try:
+            csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={ALMANAC_GID}"
+            req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                csv_text = response.read().decode('utf-8')
+                df = pd.read_csv(io.StringIO(csv_text), header=None)
+                raw_rows = df.fillna("").values.tolist()
+        except Exception:
+            pass
+
+    if not raw_rows:
+        return []
+
+    events_list = []
+    today = datetime.date.today()
+
+    for r in raw_rows:
+        if not r:
+            continue
+
+        row_str = " | ".join([str(c).strip() for c in r if str(c).strip()])
+        if not row_str:
+            continue
+
+        # Look for Date or Date Span in row
+        date_pattern = r'([0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}(?:\s*(?:to|\-)\s*[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4})?)'
+        dates_found = re.findall(date_pattern, row_str, re.IGNORECASE)
+
+        if not dates_found:
+            continue
+
+        for d_str in dates_found:
+            start_date, end_date = parse_strict_or_range_date(d_str)
+            if not start_date:
+                continue
+
+            # Extract event title and department details from remaining cells
+            cells = [str(c).strip() for c in r if str(c).strip()]
+            
+            event_title = ""
+            dept_hint = ""
+
+            # Check if cells are separated
+            meaningful = [
+                c for c in cells 
+                if not re.search(r'^[0-9]{1,2}[\/\-\.][0-9]{1,2}[\/\-\.][0-9]{2,4}', c) and 
+                c.lower() not in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "monday/tuesday", "friday/saturday", "day", "date", "s.no", "sl.no", "-", "none", "nil"]
+            ]
+
+            if meaningful:
+                event_title = meaningful[0]
+                dept_hint = " ".join(meaningful[1:]) if len(meaningful) > 1 else ""
+            else:
+                # Concatenated string line parsing
+                cleaned_line = row_str.replace(d_str, '').strip(' |')
+                cleaned_line = re.sub(r'^(?:mon|tue|wed|thu|fri|sat|sun)[a-z\/]*', '', cleaned_line, flags=re.IGNORECASE).strip(' |')
+                event_title = cleaned_line
+
+            if not event_title or event_title.lower() in ["nil", "none", "holiday", "sunday", "event", "particulars"]:
+                continue
+
+            matched_dept = normalize_almanac_department(dept_hint + " " + event_title)
+
+            is_today = False
+            is_upcoming_2weeks = False
+            days_diff = (start_date - today).days
+
+            if end_date and start_date <= today <= end_date:
+                is_today = True
+            elif start_date == today:
+                is_today = True
+            elif 0 < days_diff <= 14:
+                is_upcoming_2weeks = True
+
+            events_list.append({
+                "title": event_title,
+                "date_display": d_str,
+                "start_date": start_date,
+                "end_date": end_date,
+                "dept": matched_dept,
+                "description": dept_hint if dept_hint and dept_hint != matched_dept else "",
+                "is_today": is_today,
+                "is_upcoming_2weeks": is_upcoming_2weeks,
+                "days_away": days_diff
+            })
 
     return events_list
 
@@ -818,7 +838,6 @@ def render_parsed_doc_entry(entry):
     title_text = html.escape(str(entry.get('title', 'Research Announcement')))
     dept_text = html.escape(str(entry.get('dept', 'Campus Wide')))
     
-    # 1. Badges
     badges_list = []
     if entry.get('frequency'):
         badges_list.append(f"<span style='background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>🔄 <b>Cycle:</b> {html.escape(str(entry['frequency']))}</span>")
@@ -831,7 +850,6 @@ def render_parsed_doc_entry(entry):
 
     rendered_badges = f"<div style='margin-bottom: 8px;'>{''.join(badges_list)}</div>" if badges_list else ""
 
-    # 2. Buttons
     action_buttons = []
     if entry.get("reg_links"):
         for url in entry.get("reg_links"):
@@ -843,7 +861,6 @@ def render_parsed_doc_entry(entry):
 
     rendered_buttons = f"<div style='margin-top: 10px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
     
-    # 3. Notes
     notes_html = ""
     if entry.get("notes"):
         valid_notes = [html.escape(str(n)) for n in entry["notes"] if str(n) != entry.get("title") and len(str(n)) > 5 and str(n) not in [entry.get('frequency'), entry.get('guidelines'), entry.get('apc')]]
@@ -853,7 +870,6 @@ def render_parsed_doc_entry(entry):
     card_html = f"""<div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 11px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
-# Render Almanac Events
 def render_almanac_event_card(ev, is_highlighted=False):
     title = html.escape(ev['title'])
     date_str = html.escape(ev['date_display'])
@@ -873,7 +889,7 @@ def render_almanac_event_card(ev, is_highlighted=False):
     card_html = f"""<div style="{border_style} border-radius: 8px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 12px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">{badge_tag}<span style="color: #64748B; font-size: 11px; font-weight: 600;">{dept}</span></div><h4 style="margin: 0; color: #1E293B; font-size: 14px; font-weight: 700; line-height: 1.4;">{title}</h4><div style="margin-top: 4px; font-size: 12px; color: #334155; font-weight: 500;">🗓️ <b>Date:</b> {date_str}</div>{desc_html}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
-# --- 7. STREAMLIT FRAMEWORK DESK ---
+# --- 5. STREAMLIT FRAMEWORK DESK ---
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "logged_email" not in st.session_state: st.session_state.logged_email = ""
 if "admin_enabled" not in st.session_state: st.session_state.admin_enabled = True
@@ -1084,7 +1100,7 @@ with tab_announcements:
         upcoming_2w_events.sort(key=lambda x: x['start_date'])
 
         if upcoming_2w_events:
-            st.markdown("##### 📅 **Upcoming Activities (Next 2 Weeks)**")
+            st.markdown(f"##### 📅 **Upcoming Activities (Next 2 Weeks: {len(upcoming_2w_events)} Events)**")
             for ev in upcoming_2w_events:
                 render_almanac_event_card(ev, is_highlighted=False)
         elif not today_events:
@@ -1336,7 +1352,7 @@ with tab_submit:
                         st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
                         st.rerun()
 
-# --- 8. MONTHLY GENERATOR ---
+# --- 5. MONTHLY GENERATOR ---
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
@@ -1362,7 +1378,7 @@ with tab_document:
             st.success("🎯 Document synchronized into your Drive repository folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
-# --- 9. ADMIN CONTROL ---
+# --- 6. ADMIN CONTROL ---
 with tab_admin:
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
         st.toggle(
