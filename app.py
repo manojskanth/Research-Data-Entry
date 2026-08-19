@@ -84,7 +84,7 @@ FACULTY_DIRECTORY = {
     "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
     "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
     "kirtibdnr@stmaryscollege.in": {"name": "Dr. Kirti", "secret_key": "kirti_pass"},
-    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikhasharma_pass"},
+    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikha_pass"},
     "himani@stmaryscollege.in": {"name": "Dr. Himani", "secret_key": "himani_pass"},
     "roy@stmaryscollege.in": {"name": "Mr. MSS Roy", "secret_key": "roy_pass"},
     "phebi@stmaryscollege.in": {"name": "Ms. Phebi", "secret_key": "phebi_pass"},
@@ -697,34 +697,34 @@ def render_parsed_doc_entry(entry):
     
     badges_list = []
     if entry.get('frequency'):
-        badges_list.append(f"<span style='background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>🔄 <b>Cycle:</b> {html.escape(str(entry['frequency']))}</span>")
+        badges_list.append(f"<span style='background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-weight: 600; font-size: 11.5px; padding: 5px 10px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>🔄 <b>Cycle:</b> {html.escape(str(entry['frequency']))}</span>")
     if entry.get('apc'):
-        badges_list.append(f"<span style='background-color: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>💰 <b>APC:</b> {html.escape(str(entry['apc']))}</span>")
+        badges_list.append(f"<span style='background-color: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-weight: 600; font-size: 11.5px; padding: 5px 10px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>💰 <b>APC:</b> {html.escape(str(entry['apc']))}</span>")
     if entry.get('guidelines'):
-        badges_list.append(f"<span style='background-color: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>📝 <b>Length / Format:</b> {html.escape(str(entry['guidelines']))}</span>")
+        badges_list.append(f"<span style='background-color: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 600; font-size: 11.5px; padding: 5px 10px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>📝 <b>Length / Format:</b> {html.escape(str(entry['guidelines']))}</span>")
     if entry.get('deadline'):
-        badges_list.append(f"<span style='background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>⏰ <b>Deadline:</b> {html.escape(str(entry['deadline']))}</span>")
+        badges_list.append(f"<span style='background-color: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3; font-weight: 700; font-size: 11.5px; padding: 5px 10px; border-radius: 5px; margin-right: 6px; margin-bottom: 6px; display: inline-block;'>⏰ <b>Deadline:</b> {html.escape(str(entry['deadline']))}</span>")
 
-    rendered_badges = f"<div style='margin-bottom: 8px;'>{''.join(badges_list)}</div>" if badges_list else ""
+    rendered_badges = f"<div style='margin-bottom: 10px;'>{''.join(badges_list)}</div>" if badges_list else ""
 
     action_buttons = []
     if entry.get("reg_links"):
         for url in entry.get("reg_links"):
-            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 5px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 6px; display: inline-block;'>🎟️ Author Guidelines / Submit</a>")
+            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: #FFFFFF; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; margin-right: 8px; margin-top: 8px; display: inline-block;'>🎟️ Author Guidelines / Submit</a>")
 
     if entry.get("gen_links"):
         for url in entry.get("gen_links"):
-            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 6px 12px; border-radius: 5px; text-decoration: none; font-weight: 600; font-size: 12px; margin-right: 8px; margin-top: 6px; display: inline-block;'>🌐 Official Journal Portal</a>")
+            action_buttons.append(f"<a href='{html.escape(url)}' target='_blank' style='background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; margin-right: 8px; margin-top: 8px; display: inline-block;'>🌐 Official Journal Portal</a>")
 
-    rendered_buttons = f"<div style='margin-top: 10px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
+    rendered_buttons = f"<div style='margin-top: 12px;'>{''.join(action_buttons)}</div>" if action_buttons else ""
     
     notes_html = ""
     if entry.get("notes"):
-        valid_notes = [html.escape(str(n)) for n in entry["notes"] if str(n) != entry.get("title") and len(str(n)) > 5 and str(n) not in [entry.get('frequency'), entry.get('guidelines'), entry.get('apc')]]
+        valid_notes = [html.escape(str(n)) for n in entry["notes"] if str(n) != entry.get("title") and len(str(n)) > 5 and str(n) not in [entry.get('frequency'), entry.get('guidelines'], entry.get('apc')]]
         if valid_notes:
-            notes_html = f"<div style='color: #475569; font-size: 12.5px; line-height: 1.5; margin-top: 6px;'>{'<br>'.join(['• ' + vn for vn in valid_notes])}</div>"
+            notes_html = f"<div style='color: #475569; font-size: 13.5px; line-height: 1.6; margin-top: 8px;'>{'<br>'.join(['• ' + vn for vn in valid_notes])}</div>"
 
-    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 16px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 11px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
+    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 10px; padding: 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border-left: 4px solid #4338CA; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; margin-bottom: 18px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;"><span style="background-color: #4338CA; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">{category_label}</span><span style="color: #64748B; font-size: 12px; font-weight: 600;">{dept_text}</span></div><h4 style="margin: 0 0 10px 0; color: #1E293B; font-size: 16px; font-weight: 700; line-height: 1.4;">{title_text}</h4>{rendered_badges}{notes_html}{rendered_buttons}</div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_almanac_event_card(ev, is_highlighted=False):
@@ -800,9 +800,10 @@ stu_df = fetch_sheet_records("Student_Activities", creds)
 comm_df = fetch_sheet_records("Committees_Cells_Clubs", creds)
 
 # --- TAB NAVIGATION ---
-tab_gallery, tab_announcements, tab_explorer, tab_submit, tab_document, tab_admin = st.tabs([
+tab_gallery, tab_journals, tab_events, tab_explorer, tab_submit, tab_document, tab_admin = st.tabs([
     "🌐 Research Portal Home",
-    "📢 Live Announcements & Events",
+    "📖 Journal Info",
+    "📅 Events Calendar",
     "📋 Master Database Explorer",
     "📝 Enter Research Data", 
     "📊 Monthly Achievement Generator", 
@@ -876,28 +877,24 @@ with tab_gallery:
     else:
         st.info("No high-impact publication records found. Add your publications under the 'Enter Research Data' tab!")
 
-# --- TAB 2: LIVE ANNOUNCEMENTS & ALMANAC EVENTS (TWO-COLUMN BULLETIN) ---
-with tab_announcements:
-    st.subheader("📢 Campus Bulletin & Upcoming Opportunities")
-    st.markdown("Live repository of conferences, call for papers, and upcoming departmental & club activities from the College Almanac.")
+# --- TAB 2: JOURNAL INFO (DEDICATED JOURNAL TAB WITH INCREASED FONT) ---
+with tab_journals:
+    st.subheader("📖 Research Journals & Call for Papers")
+    st.markdown("Inspected repository of indexed journals, guidelines, publication frequencies, and submission portals.")
 
     col_f1, col_f2 = st.columns([4, 1])
     with col_f1:
         filter_options = ["All Units / Campus Wide"] + DEPARTMENTS + COMMITTEES_CELLS_CLUBS
-        selected_unit = st.selectbox("🎯 Filter Research Announcements by Department / Club:", filter_options)
+        selected_unit_j = st.selectbox("🎯 Filter Journals by Department / Club:", filter_options, key="journal_filter")
     with col_f2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Refresh Bulletin", use_container_width=True):
+        if st.button("🔄 Refresh Journals", use_container_width=True, key="ref_j"):
             st.rerun()
 
-    with st.spinner("Accessing Google Drive folders and syncing Almanac schedule..."):
+    with st.spinner("Accessing research vault files..."):
         research_files = fetch_drive_folder_items(RESEARCH_EVENTS_FOLDER_ID, creds)
-        campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
-        almanac_events = fetch_almanac_events(ALMANAC_FILE_ID, creds)
 
     parsed_docx_entries = []
-    regular_research_files = []
-
     for f in research_files:
         name = f.get("name", "")
         if name.endswith(".docx") or "officedocument.wordprocessingml.document" in f.get("mimeType", ""):
@@ -905,90 +902,81 @@ with tab_announcements:
             if b_data:
                 extracted = extract_announcements_from_docx(b_data)
                 parsed_docx_entries.extend(extracted)
-        else:
-            regular_research_files.append(f)
 
-    # Two-Column Layout
-    col_left, col_right = st.columns(2)
-
-    # LEFT COLUMN: Research Conferences & CFP Dossiers
-    with col_left:
-        st.markdown("""<div style="background-color: #EEF2FF; border-left: 4px solid #1A237E; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #1A237E;">🔬 Upcoming Conferences & Call for Papers</h4><p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming Research Events</code></p></div>""", unsafe_allow_html=True)
-
-        if parsed_docx_entries:
-            matching_docx_entries = [
-                e for e in parsed_docx_entries 
-                if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in e["dept"].lower() or selected_unit.lower() in (e["title"] + " ".join(e["notes"])).lower()
-            ]
-            for entry in matching_docx_entries:
+    if parsed_docx_entries:
+        matching_journals = [
+            e for e in parsed_docx_entries 
+            if selected_unit_j == "All Units / Campus Wide" or selected_unit_j.lower() in e["dept"].lower() or selected_unit_j.lower() in (e["title"] + " ".join(e["notes"])).lower()
+        ]
+        if matching_journals:
+            for entry in matching_journals:
                 render_parsed_doc_entry(entry)
+        else:
+            st.info(f"No journal records specifically tagged for '{selected_unit_j}'.")
+    else:
+        st.info("No journal dossier documents found in the Research Events folder.")
 
-        if regular_research_files:
-            filtered_research = [
-                f for f in regular_research_files 
-                if selected_unit == "All Units / Campus Wide" or selected_unit.lower() in f.get("name", "").lower()
-            ]
-            for f in filtered_research:
-                render_bulletin_card(f, "Research Poster / CFP", bg_color="#1A237E")
-
-        if not parsed_docx_entries and not regular_research_files:
-            st.info("No conference circulars, Word dossiers, or Call-for-Paper documents found in the Research Events folder.")
-
-    # RIGHT COLUMN: Almanac Events (All Events Scheduled for Today & Next 14 Days)
-    with col_right:
-        st.markdown("""<div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4><p style="margin: 0; color: #475569; font-size: 12px;">Source: <code>2026-27 College Almanac (Complete 14-Day Schedule)</code></p></div>""", unsafe_allow_html=True)
-
-        # 1. Today's Events (Ongoing)
-        today_events = [ev for ev in almanac_events if ev['is_today']]
-        if today_events:
-            st.markdown("##### 🚨 **Today's Events (Ongoing)**")
-            for ev in today_events:
-                render_almanac_event_card(ev, is_highlighted=True)
-            st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
-
-        # 2. Upcoming Events (Next 14 Days)
-        upcoming_2w_events = [ev for ev in almanac_events if ev['is_upcoming_2weeks']]
-
-        if upcoming_2w_events:
-            st.markdown(f"##### 📅 **Upcoming Activities (Next 2 Weeks: {len(upcoming_2w_events)} Events Scheduled)**")
-            for ev in upcoming_2w_events:
-                render_almanac_event_card(ev, is_highlighted=False)
-        elif not today_events:
-            st.info("No Almanac events scheduled for the next 14 days.")
-
-        # 3. Event Posters & Circulars from Drive
-        if campus_files:
-            st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
-            st.markdown("##### 📁 **Event Posters & Circulars**")
-            for f in campus_files:
-                render_bulletin_card(f, "Department / Club Event", bg_color="#16A34A")
-
-    # Admin Control Panel
+    # Admin Control
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
-        with st.expander("🛠️ Manage Announcements (Delete / Override Expired Dossiers & Flyers)"):
-            all_announcements = research_files + campus_files
-            if all_announcements:
-                file_map = {f"{f.get('name')} (ID: {f.get('id')})": f.get('id') for f in all_announcements}
-                selected_del = st.selectbox("Select Expired Document/Flyer to Delete from Drive:", list(file_map.keys()))
-                if st.button("🗑️ Delete Selected Document from Drive", type="secondary"):
-                    if delete_drive_file(file_map[selected_del], creds):
-                        st.success("✅ Expired document deleted from Drive successfully!")
-                        st.rerun()
-                    else:
-                        st.error("Failed to delete file from Drive.")
-            
-            st.markdown("---")
-            st.markdown("**📤 Upload New Announcements Document (Word .docx / Image / PDF):**")
-            u_target = st.radio("Target Folder:", ["🔬 Research Conferences Vault", "🎭 Campus Activities Vault"], horizontal=True)
-            u_file = st.file_uploader("Select Announcement File:", type=["docx", "png", "jpg", "jpeg", "pdf"], key="bulletin_upload")
-            if st.button("Publish File to Live Bulletin"):
+        with st.expander("🛠️ Manage Journal Dossier Files"):
+            u_file = st.file_uploader("Upload New Journal Dossier (.docx):", type=["docx"], key="journal_upload")
+            if st.button("Upload Journal Document"):
                 if u_file:
-                    target_id = RESEARCH_EVENTS_FOLDER_ID if "Research" in u_target else CAMPUS_ACTIVITIES_FOLDER_ID
-                    upload_file_to_drive(u_file.read(), u_file.name, u_file.type, [target_id], creds)
-                    st.success("🎉 File uploaded to Drive and published to the live bulletin!")
+                    upload_file_to_drive(u_file.read(), u_file.name, u_file.type, [RESEARCH_EVENTS_FOLDER_ID], creds)
+                    st.success("🎉 Journal document uploaded successfully!")
                     st.rerun()
 
-# --- TAB 3: LIVE MASTER DATABASE EXPLORER ---
+# --- TAB 3: EVENTS CALENDAR (TODAY'S TOP BOX + 2-WEEK SCHEDULE) ---
+with tab_events:
+    st.subheader("📅 College Events & Activities Calendar")
+    st.markdown("Complete chronological schedule extracted from the 2026–27 College Almanac.")
+
+    with st.spinner("Syncing college almanac calendar..."):
+        almanac_events = fetch_almanac_events(ALMANAC_FILE_ID, creds)
+        campus_files = fetch_drive_folder_items(CAMPUS_ACTIVITIES_FOLDER_ID, creds)
+
+    # 1. TOP BOX: Today's Events (Ongoing)
+    today_events = [ev for ev in almanac_events if ev['is_today']]
+    if today_events:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border: 2px solid #10B981; border-radius: 12px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.15);">
+            <h3 style="margin: 0 0 12px 0; color: #065F46; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                🚨 Today's Ongoing Campus Events
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Render cards inside container
+        for ev in today_events:
+            render_almanac_event_card(ev, is_highlighted=True)
+    else:
+        st.markdown("""
+        <div style="background-color: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 15px; margin-bottom: 20px; text-align: center; color: #64748B;">
+            ☕ No special college events or assessments scheduled for today. Regular classes and departmental operations are active.
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<hr style='margin: 25px 0;'>", unsafe_allow_html=True)
+
+    # 2. Upcoming Activities (Next 2 Weeks)
+    upcoming_2w_events = [ev for ev in almanac_events if ev['is_upcoming_2weeks']]
+
+    st.markdown(f"### 📅 Upcoming Activities (Next 2 Weeks: {len(upcoming_2w_events)} Events Scheduled)")
+    
+    if upcoming_2w_events:
+        for ev in upcoming_2w_events:
+            render_almanac_event_card(ev, is_highlighted=False)
+    else:
+        st.info("No additional Almanac activities scheduled for the next 14 days.")
+
+    # 3. Complementary Flyers / Posters from Drive
+    if campus_files:
+        st.markdown("<hr style='margin: 25px 0;'>", unsafe_allow_html=True)
+        st.markdown("### 📁 **Departmental Event Posters & Circulars**")
+        for f in campus_files:
+            render_bulletin_card(f, "Department / Club Event", bg_color="#16A34A")
+
+# --- TAB 4: LIVE MASTER DATABASE EXPLORER ---
 with tab_explorer:
     st.subheader("📋 Master Google Sheet Live Explorer")
     st.markdown("Extract and inspect records across all sheets in real time.")
@@ -998,7 +986,7 @@ with tab_explorer:
         "🏆 Faculty_Achievements", 
         "👥 Student_Activities", 
         "🏛️ Committees_Cells_Clubs"
-    ])
+    ], key="expl_sheet")
     
     target_tab_map = {
         "🔬 Research_Database": res_df,
@@ -1009,7 +997,7 @@ with tab_explorer:
     selected_df = target_tab_map[sheet_choice]
     
     if not selected_df.empty:
-        search_query = st.text_input("🔍 Search within this sheet (filter by Faculty Name, Department, or Title):", "").strip().lower()
+        search_query = st.text_input("🔍 Search within this sheet (filter by Faculty Name, Department, or Title):", "", key="expl_srch").strip().lower()
         display_df = selected_df.copy()
         if search_query:
             display_df = display_df[display_df.apply(lambda row: row.astype(str).str.lower().str.contains(search_query).any(), axis=1)]
@@ -1027,7 +1015,7 @@ with tab_explorer:
     else:
         st.info(f"The `{sheet_choice}` tab is currently empty or contains no records in the Master Sheet.")
 
-# --- TAB 4: DATA ENTRY WORKSPACE ---
+# --- TAB 5: DATA ENTRY WORKSPACE ---
 with tab_submit:
     is_locked = not st.session_state.get("admin_enabled", True)
     is_admin = st.session_state.get("logged_email") in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]
@@ -1041,11 +1029,11 @@ with tab_submit:
         col1, col2, col3 = st.columns(3)
         with col1:
             if scope_type == "Department":
-                form_focus = st.selectbox("Department Focus*", DEPARTMENTS)
+                form_focus = st.selectbox("Department Focus*", DEPARTMENTS, key="sub_f1")
             else:
-                form_focus = st.selectbox("Committees / Cells / Clubs Focus*", COMMITTEES_CELLS_CLUBS)
-        with col2: form_month = st.selectbox("Reporting Month*", MONTHS)
-        with col3: form_year = st.selectbox("Academic Year*", ACADEMIC_YEARS)
+                form_focus = st.selectbox("Committees / Cells / Clubs Focus*", COMMITTEES_CELLS_CLUBS, key="sub_f2")
+        with col2: form_month = st.selectbox("Reporting Month*", MONTHS, key="sub_m")
+        with col3: form_year = st.selectbox("Academic Year*", ACADEMIC_YEARS, key="sub_y")
             
         st.markdown("---")
         
@@ -1055,7 +1043,7 @@ with tab_submit:
                 "🔬 Research Database", 
                 "🏆 Faculty Profiles & Milestones", 
                 "👥 Departmental & Student Contributions"
-            ])
+            ], key="sub_cls")
 
             if classification != "--- Select Category ---":
                 if classification == "🔬 Research Database":
@@ -1197,7 +1185,7 @@ with tab_submit:
                         st.success(f"🎉 Structured Activity Log written to '{target_sheet}' sheet successfully!")
                         st.rerun()
 
-# --- 5. MONTHLY GENERATOR ---
+# --- 6. MONTHLY GENERATOR ---
 with tab_document:
     st.subheader("Central Document Engine Dashboard Workspace")
     
@@ -1206,11 +1194,11 @@ with tab_document:
         view_focus = st.selectbox(
             "Target Department / Scope Scope", 
             DEPARTMENTS + ["Committees / Cells / Clubs"], 
-            key="vd1"
+            key="vd2"
         )
             
-    with col_d2: view_month = st.selectbox("Target Month Scope", MONTHS, key="vm1")
-    with col_d3: view_year = st.selectbox("Target Year Scope", ACADEMIC_YEARS, key="vy1")
+    with col_d2: view_month = st.selectbox("Target Month Scope", MONTHS, key="vm2")
+    with col_d3: view_year = st.selectbox("Target Year Scope", ACADEMIC_YEARS, key="vy2")
         
     if st.button("🏗️ Construct Automated Monthly Document Package", use_container_width=True, type="primary"):
         with st.spinner("Assembling structured records from sheets..."):
@@ -1223,7 +1211,7 @@ with tab_document:
             st.success("🎯 Document synchronized into your Drive repository folder automatically!")
             st.download_button(label="📥 Download Report File Asset Directly", data=docx_bytes, file_name=file_name_string, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
-# --- 6. ADMIN CONTROL ---
+# --- 7. ADMIN CONTROL ---
 with tab_admin:
     if st.session_state.logged_email in ["research@stmaryscollege.in", "iqac@stmaryscollege.in"]:
         st.toggle(
