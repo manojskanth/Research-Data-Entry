@@ -255,7 +255,6 @@ def extract_announcements_from_docx(file_bytes):
         current_dept = "All Units / Campus Wide"
         current_category = "UGC CARE / INDEXED JOURNAL"
 
-        # Scan for overall Category & Department context
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt:
@@ -287,7 +286,7 @@ def extract_announcements_from_docx(file_bytes):
             clean_t = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', raw_t).strip(' \t\n\r|•-:')
             return clean_t, list(set(urls))
 
-        # Process Tables: one card per table row
+        # Parse tables row by row
         for table in doc.tables:
             if not table.rows or len(table.rows) < 2:
                 continue
@@ -308,7 +307,6 @@ def extract_announcements_from_docx(file_bytes):
                 row_urls = list(set(row_urls))
                 joined = " ".join(row_cells_data).lower()
 
-                # Skip header repetitions
                 if sum(1 for hw in ["journal name", "journal title", "frequency", "guidelines", "formatting brief", "s.no", "serial", "submission link", "fee", "apc"] if hw in joined) >= 2:
                     continue
 
@@ -370,7 +368,7 @@ def extract_announcements_from_docx(file_bytes):
                     "gen_links": list(set(gen_links))
                 })
 
-        # Process Standalone Paragraphs
+        # Standalone Paragraphs
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt or len(txt) < 80:
@@ -586,31 +584,13 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
     return doc_stream.getvalue()
 
 def styled_block(format_text, example_text):
-    html_string = f"""
-<div style="background-color: #FFFFFF; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #EAECEF; margin-bottom: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-    <div style="display: flex; align-items: flex-start; margin-bottom: 14px;">
-        <div style="background-color: #E8EAF6; color: #1A237E; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 4px 8px; border-radius: 4px; margin-right: 12px; min-width: 70px; text-align: center; border-left: 3px solid #1A237E;">Format</div>
-        <div style="color: #2C3E50; font-size: 14px; line-height: 1.5; font-weight: 500;">{format_text}</div>
-    </div>
-    <div style="height: 1px; background-color: #F1F3F5; margin: 12px 0;"></div>
-    <div style="display: flex; align-items: flex-start;">
-        <div style="background-color: #E8F5E9; color: #1B5E20; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 4px 8px; border-radius: 4px; margin-right: 12px; min-width: 70px; text-align: center; border-left: 3px solid #2E7D32;">Example</div>
-        <div style="color: #455A64; font-size: 14px; line-height: 1.5; font-style: italic; font-weight: 500;">{example_text}</div>
-    </div>
-</div>
-""".strip()
+    html_string = f"""<div style="background-color: #FFFFFF; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #EAECEF; margin-bottom: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"><div style="display: flex; align-items: flex-start; margin-bottom: 14px;"><div style="background-color: #E8EAF6; color: #1A237E; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 4px 8px; border-radius: 4px; margin-right: 12px; min-width: 70px; text-align: center; border-left: 3px solid #1A237E;">Format</div><div style="color: #2C3E50; font-size: 14px; line-height: 1.5; font-weight: 500;">{format_text}</div></div><div style="height: 1px; background-color: #F1F3F5; margin: 12px 0;"></div><div style="display: flex; align-items: flex-start;"><div style="background-color: #E8F5E9; color: #1B5E20; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 4px 8px; border-radius: 4px; margin-right: 12px; min-width: 70px; text-align: center; border-left: 3px solid #2E7D32;">Example</div><div style="color: #455A64; font-size: 14px; line-height: 1.5; font-style: italic; font-weight: 500;">{example_text}</div></div></div>"""
     st.markdown(html_string, unsafe_allow_html=True)
 
 # --- 5. WEBSITE FRONT-PAGE & ANNOUNCEMENT CARDS ---
 def render_scrolling_ticker(announcements):
     ticker_text = " &nbsp;&nbsp;&nbsp; 🌟 &nbsp;&nbsp;&nbsp; ".join(announcements)
-    ticker_html = f"""
-    <div style="background: linear-gradient(90deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 10px 15px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); font-weight: 500;">
-        <marquee behavior="scroll" direction="left" scrollamount="6">
-            📢 <b>LATEST RESEARCH HIGHLIGHTS & INDEXED PUBLICATIONS:</b> &nbsp;&nbsp;&nbsp; {ticker_text}
-        </marquee>
-    </div>
-    """
+    ticker_html = f"""<div style="background: linear-gradient(90deg, #1A237E 0%, #283593 100%); color: #FFFFFF; padding: 10px 15px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); font-weight: 500;"><marquee behavior="scroll" direction="left" scrollamount="6">📢 <b>LATEST RESEARCH HIGHLIGHTS & INDEXED PUBLICATIONS:</b> &nbsp;&nbsp;&nbsp; {ticker_text}</marquee></div>"""
     st.markdown(ticker_html, unsafe_allow_html=True)
 
 def render_publication_achiever_card(author, dept, title, journal, indexing, link_url):
@@ -630,56 +610,19 @@ def render_publication_achiever_card(author, dept, title, journal, indexing, lin
     
     link_html = f"<a href='{link_url}' target='_blank' style='color:#1A237E; font-weight:600; text-decoration:none;'>🔗 View Document / Link</a>" if link_url and link_url not in ["Pending Folder Permissions Link", "NA", ""] else ""
 
-    card_html = f"""
-    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border: {border_style}; margin-bottom: 20px; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-        <div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <span style="background-color:{badge_bg}; color:white; font-size:11px; font-weight:700; padding:4px 8px; border-radius:4px; text-transform:uppercase;">
-                    {indexing}
-                </span>
-                <span style="color:#64748B; font-size:12px; font-weight:500;">{dept}</span>
-            </div>
-            <h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; line-height: 1.4;">{title}</h4>
-            <p style="margin: 0 0 6px 0; color: #334155; font-size: 13px; font-weight: 600;">✍️ {author}</p>
-            <p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; font-style: italic;">📖 {journal}</p>
-        </div>
-        <div style="padding-top:8px; border-top:1px solid #F1F5F9; font-size:12px;">
-            {link_html}
-        </div>
-    </div>
-    """
+    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 10px; padding: 18px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border: {border_style}; margin-bottom: 20px; height: 100%; display: flex; flex-direction: column; justify-content: space-between;"><div><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span style="background-color:{badge_bg}; color:white; font-size:11px; font-weight:700; padding:4px 8px; border-radius:4px; text-transform:uppercase;">{indexing}</span><span style="color:#64748B; font-size:12px; font-weight:500;">{dept}</span></div><h4 style="margin: 0 0 8px 0; color: #1E293B; font-size: 15px; line-height: 1.4;">{title}</h4><p style="margin: 0 0 6px 0; color: #334155; font-size: 13px; font-weight: 600;">✍️ {author}</p><p style="margin: 0 0 10px 0; color: #64748B; font-size: 12px; font-style: italic;">📖 {journal}</p></div><div style="padding-top:8px; border-top:1px solid #F1F5F9; font-size:12px;">{link_html}</div></div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_bulletin_card(file_obj, category_label, bg_color="#1A237E"):
-    file_name = file_obj.get("name", "Announcement Flyer")
-    view_link = file_obj.get("webViewLink", "#")
+    file_name = html.escape(file_obj.get("name", "Announcement Flyer"))
+    view_link = html.escape(file_obj.get("webViewLink", "#"))
     mime = file_obj.get("mimeType", "")
     icon = "🖼️" if "image" in mime else ("📝" if "document" in mime or file_name.endswith(".docx") else "📄")
 
     dl_match = re.search(r'(?:due|deadline|date|registration)[\s\_\-]*([0-9]{1,2}[A-Za-z]+|[0-9]{1,2}[\-\.][0-9]{1,2}[\-\.][0-9]{2,4})', file_name, re.IGNORECASE)
-    deadline_badge = f"""
-    <div style="background-color: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 4px; margin-top: 6px; display: inline-block;">
-        ⏰ Deadline: {dl_match.group(1)}
-    </div>
-    """ if dl_match else ""
+    deadline_badge = f"""<div style="background-color: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 4px; margin-top: 6px; display: inline-block;">⏰ Deadline: {html.escape(dl_match.group(1))}</div>""" if dl_match else ""
 
-    card_html = f"""
-    <div style="background-color: #FFFFFF; border-radius: 10px; padding: 16px; box-shadow: 0 3px 10px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; margin-bottom: 15px;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-            <span style="background-color: {bg_color}; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">
-                {category_label}
-            </span>
-            <span style="font-size: 16px;">{icon}</span>
-        </div>
-        <h4 style="margin: 0 0 4px 0; color: #1E293B; font-size: 14px; line-height: 1.4; word-break: break-word;">{file_name}</h4>
-        {deadline_badge}
-        <div style="margin-top: 10px; font-size: 12px;">
-            <a href="{view_link}" target="_blank" style="background-color: #EEF2FF; color: #1A237E; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
-                🔍 Open Document / Flyer
-            </a>
-        </div>
-    </div>
-    """
+    card_html = f"""<div style="background-color: #FFFFFF; border-radius: 10px; padding: 16px; box-shadow: 0 3px 10px rgba(0,0,0,0.06); border: 1px solid #E2E8F0; margin-bottom: 15px;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;"><span style="background-color: {bg_color}; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">{category_label}</span><span style="font-size: 16px;">{icon}</span></div><h4 style="margin: 0 0 4px 0; color: #1E293B; font-size: 14px; line-height: 1.4; word-break: break-word;">{file_name}</h4>{deadline_badge}<div style="margin-top: 10px; font-size: 12px;"><a href="{view_link}" target="_blank" style="background-color: #EEF2FF; color: #1A237E; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">🔍 Open Document / Flyer</a></div></div>"""
     st.markdown(card_html, unsafe_allow_html=True)
 
 def render_parsed_doc_entry(entry):
@@ -833,12 +776,7 @@ with tab_gallery:
     m4.metric("🏛️ Committee Activities", len(comm_df) if not comm_df.empty else 0)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style="background-color:#F8FAFC; border-left: 5px solid #1A237E; padding:18px 22px; border-radius:6px; margin-bottom:20px;">
-        <h3 style="margin:0 0 6px 0; color:#1A237E;">🏆 Faculty Research Achievers Gallery</h3>
-        <p style="margin:0; color:#475569; font-size:14px;">Ranked in order of impact: <b>Authored Books, Scopus, Web of Science / SCIE, ABDC, and UGC-CARE</b> publications.</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div style="background-color:#F8FAFC; border-left: 5px solid #1A237E; padding:18px 22px; border-radius:6px; margin-bottom:20px;"><h3 style="margin:0 0 6px 0; color:#1A237E;">🏆 Faculty Research Achievers Gallery</h3><p style="margin:0; color:#475569; font-size:14px;">Ranked in order of impact: <b>Authored Books, Scopus, Web of Science / SCIE, ABDC, and UGC-CARE</b> publications.</p></div>""", unsafe_allow_html=True)
 
     if valid_publications:
         valid_publications.sort(key=get_impact_rank)
@@ -880,24 +818,21 @@ with tab_announcements:
 
     for f in research_files:
         name = f.get("name", "")
+        # Only parse Word documents for announcement entries
         if name.endswith(".docx") or "officedocument.wordprocessingml.document" in f.get("mimeType", ""):
             b_data = download_drive_file_bytes(f.get("id"), creds)
             if b_data:
                 extracted = extract_announcements_from_docx(b_data)
                 parsed_docx_entries.extend(extracted)
         else:
+            # Only PDFs, JPGs, and PNGs are kept as flyer cards
             regular_research_files.append(f)
 
     # Two-Column Layout
     col_left, col_right = st.columns(2)
 
     with col_left:
-        st.markdown("""
-        <div style="background-color: #EEF2FF; border-left: 4px solid #1A237E; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;">
-            <h4 style="margin: 0; color: #1A237E;">🔬 Upcoming Conferences & Call for Papers</h4>
-            <p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming Research Events</code></p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div style="background-color: #EEF2FF; border-left: 4px solid #1A237E; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #1A237E;">🔬 Upcoming Conferences & Call for Papers</h4><p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming Research Events</code></p></div>""", unsafe_allow_html=True)
 
         if parsed_docx_entries:
             matching_docx_entries = [
@@ -919,12 +854,7 @@ with tab_announcements:
             st.info("No conference circulars, Word dossiers, or Call-for-Paper documents found in the Research Events folder.")
 
     with col_right:
-        st.markdown("""
-        <div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;">
-            <h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4>
-            <p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming College Events</code></p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div style="background-color: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; border-radius: 4px; margin-bottom: 15px;"><h4 style="margin: 0; color: #16A34A;">🎭 Departmental, Club & Student Activities</h4><p style="margin: 0; color: #475569; font-size: 12px;">Folder Vault: <code>Upcoming College Events</code></p></div>""", unsafe_allow_html=True)
 
         if campus_files:
             filtered_campus = [
