@@ -653,7 +653,13 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
                             elif f_cat == "Paper Presentation":
                                 narr = f'{f_name} presented a research paper titled "{title_text}" at the conference organized by {org_body or pub_name} ({duration_dates or "NA"}). Scope: {conf_scope}.'
                             else:
-                                narr = f'{f_name} completed a {duration_dates} {conf_scope if (conf_scope and conf_scope != "NA") else "Institutional"} {f_cat} on "{title_text}," organized by {org_body}.'
+                                # Cleaned extraction text logic without duplicated fragments
+                                duration_text = f" from {duration_dates}" if duration_dates and duration_dates != "NA" else ""
+                                scope_text = f"{conf_scope} " if conf_scope and conf_scope != "NA" else "Institutional "
+                                narr = f'{f_name} attended a {scope_text}{f_cat} on "{title_text}"{duration_text}, organized by {org_body}.'
+                        elif sec["sheet"] == "Faculty_Achievements":
+                            f_name, f_subtype, f_narrative = padded[6], padded[4], padded[5]
+                            narr = f'{f_narrative}'
                         else:
                             narr = padded[5]
                         
@@ -1006,11 +1012,21 @@ with tab_explorer:
     
     if not selected_df.empty:
         search_query = st.text_input("🔍 Search within this sheet (filter by Faculty Name, Department, or Title):", "", key="expl_srch").strip().lower()
+        
         display_df = selected_df.copy()
+        
+        # Drop the timestamp column (assumed to be index 0 for the affected sheets)
+        if sheet_choice in ["🏆 Faculty_Achievements", "👥 Student_Activities", "🏛️ Committees_Cells_Clubs"]:
+            display_df = display_df.drop(display_df.columns[0], axis=1)
+            
+        # Re-prefix with standard columns based on the resulting format
+        # Inject SL No
+        display_df.insert(0, "SL No", range(1, 1 + len(display_df)))
+
         if search_query:
             display_df = display_df[display_df.apply(lambda row: row.astype(str).str.lower().str.contains(search_query).any(), axis=1)]
             
-        st.dataframe(display_df, use_container_width=True, height=400)
+        st.dataframe(display_df, use_container_width=True, height=400, hide_index=True)
         st.caption(f"Showing {len(display_df)} of {len(selected_df)} records")
         
         csv_data = display_df.to_csv(index=False).encode('utf-8')
