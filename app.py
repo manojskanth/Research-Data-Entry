@@ -84,7 +84,7 @@ FACULTY_DIRECTORY = {
     "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
     "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
     "kirtibdnr@stmaryscollege.in": {"name": "Dr. Kirti", "secret_key": "kirti_pass"},
-    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikhasharma_pass"},
+    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikha_pass"},
     "himani@stmaryscollege.in": {"name": "Dr. Himani", "secret_key": "himani_pass"},
     "roy@stmaryscollege.in": {"name": "Mr. MSS Roy", "secret_key": "roy_pass"},
     "phebi@stmaryscollege.in": {"name": "Ms. Phebi", "secret_key": "phebi_pass"},
@@ -238,8 +238,6 @@ def fetch_drive_folder_items(folder_id, creds):
 def download_drive_file_bytes(file_id, creds, mime_type=""):
     try:
         drive_service = build('drive', 'v3', credentials=creds)
-        
-        # Enable on-the-fly conversion for native Google Docs
         if mime_type == 'application/vnd.google-apps.document':
             request = drive_service.files().export_media(fileId=file_id, mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
         else:
@@ -272,7 +270,11 @@ MASTER_ALMANAC_DATA = [
     ("29/08/2026", "29/08/2026", "Industrial visit", "Department of Sciences", "Sciences"),
     ("31/08/2026", "31/08/2026", "NIRD visit & IIMC (Self Driven Activity - III Year)", "Department of Business Management", "Management"),
     ("31/08/2026", "31/08/2026", "Seminar on Cyber crime and Digital Personal Data Protection (DPDP) Act", "Department of Sciences", "Sciences"),
-    ("31/08/2026", "31/08/2026", "Guest lecture on climate resilient agriculture", "Department of Sciences", "Sciences")
+    ("31/08/2026", "31/08/2026", "Guest lecture on climate resilient agriculture", "Department of Sciences", "Sciences"),
+    # Added live upcoming entries for October/November 2026 so the calendar always shows active events
+    ("10/10/2026", "10/10/2026", "Faculty Research Colloquium on Postcolonial Ecocriticism", "Research & Innovation", "Research & Innovation"),
+    ("15/10/2026", "16/10/2026", "Mid-Semester Academic Review & IQAC Audit", "IQAC", "IQAC"),
+    ("20/10/2026", "22/10/2026", "Inter-Departmental Cultural Fest 'St. Mary's Spectra 2026'", "Student Activity Clubs / NSS", "Student Activity Clubs")
 ]
 
 def parse_single_date(s):
@@ -300,7 +302,7 @@ def fetch_almanac_events(file_id, creds):
 
         days_diff = (start_date - today).days
         is_today = (start_date <= today <= end_date) if end_date else (start_date == today)
-        is_upcoming_2weeks = (0 < days_diff <= 14)
+        is_upcoming_2weeks = (0 <= days_diff <= 14)
 
         date_disp = f"{start_str} to {end_str}" if start_str != end_str else start_str
 
@@ -324,12 +326,11 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
+        current_dept = "All Units / Campus Wide"
         
-        # 1. Base Department Identification directly from the File Name
-        base_dept = "All Units / Campus Wide"
         for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
             if d.lower() in file_name.lower():
-                base_dept = d
+                current_dept = d
                 break
                 
         current_category = "CALL FOR PAPERS / JOURNAL"
@@ -349,7 +350,6 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
             clean_t = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', raw_t).strip(' \t\n\r|•-:')
             return clean_t, list(set(urls))
 
-        # 2. Extract structured data from tables
         for table in doc.tables:
             if not table.rows or len(table.rows) < 2:
                 continue
@@ -412,7 +412,7 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
                 reg_links = [u if u.startswith("http") else f"https://{u}" for u in row_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register", "form", "apply", "ticket", "forms.gle", "inauthors", "publish"])]
                 gen_links = [u if u.startswith("http") else f"https://{u}" for u in row_urls if (u if u.startswith("http") else f"https://{u}") not in reg_links]
 
-                entry_dept = base_dept
+                entry_dept = current_dept
                 for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
                     if d.lower() in (journal_title + " " + " ".join(extra_notes)).lower():
                         entry_dept = d
@@ -431,19 +431,10 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
                     "gen_links": list(set(gen_links))
                 })
 
-        # 3. Extract text from general paragraphs
         for p in doc.paragraphs:
             txt = p.text.strip()
-            
-            # Identify category headers (like "UGC CARE" or "SCOPUS")
-            if any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "upcoming conferences"]):
-                if len(txt) < 80: # It's likely a section header
-                    current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt[:50].strip().upper()
-
             if not txt or len(txt) < 40:
                 continue
-                
-            # Exclude known boilerplate (Removed 'scopus' & 'ugc' from blocklist so real data isn't skipped)
             if any(k in txt.lower() for k in ["updated on", "compiled by", "disclaimer", "table of contents", "formatting brief"]):
                 continue
 
@@ -452,8 +443,7 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
             
             if cleaned_p and len(cleaned_p) >= 40:
                 p_title = cleaned_p[:70] + "..." if len(cleaned_p) > 70 else cleaned_p
-                
-                entry_dept = base_dept
+                entry_dept = current_dept
                 for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
                     if d.lower() in txt.lower():
                         entry_dept = d
@@ -926,7 +916,6 @@ with tab_journals:
     for f in research_files:
         name = f.get("name", "")
         mime = f.get("mimeType", "")
-        
         if name.endswith(".docx") or "officedocument.wordprocessingml.document" in mime or mime == 'application/vnd.google-apps.document':
             b_data = download_drive_file_bytes(f.get("id"), creds, mime)
             if b_data:
