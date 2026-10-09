@@ -314,11 +314,17 @@ def fetch_almanac_events(file_id, creds):
     return events_list
 
 # --- 4. ROBUST WORD DOCUMENT PARSER ---
-def extract_announcements_from_docx(file_bytes):
+def extract_announcements_from_docx(file_bytes, file_name=""):
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
         current_dept = "All Units / Campus Wide"
+        
+        for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
+            if d.lower() in file_name.lower():
+                current_dept = d
+                break
+                
         current_category = "UGC CARE / INDEXED JOURNAL"
 
         for p in doc.paragraphs:
@@ -352,7 +358,6 @@ def extract_announcements_from_docx(file_bytes):
             clean_t = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', raw_t).strip(' \t\n\r|•-:')
             return clean_t, list(set(urls))
 
-        # Process Tables
         for table in doc.tables:
             if not table.rows or len(table.rows) < 2:
                 continue
@@ -434,7 +439,6 @@ def extract_announcements_from_docx(file_bytes):
                     "gen_links": list(set(gen_links))
                 })
 
-        # Standalone Paragraphs
         for p in doc.paragraphs:
             txt = p.text.strip()
             if not txt or len(txt) < 80:
@@ -519,7 +523,6 @@ def fetch_sheet_records(sheet_name, creds):
         data = [r + [""] * (max_cols - len(r)) if len(r) < max_cols else r[:max_cols] for r in rows[1:]]
         df = pd.DataFrame(data, columns=headers)
         
-        # Robust timestamp extraction: searches entire row for a datetime string if col 0 fails
         def extract_row_datetime(row):
             for val in row:
                 try:
@@ -653,7 +656,6 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
                             elif f_cat == "Paper Presentation":
                                 narr = f'{f_name} presented a research paper titled "{title_text}" at the conference organized by {org_body or pub_name} ({duration_dates or "NA"}). Scope: {conf_scope}.'
                             else:
-                                # Cleaned extraction text logic without duplicated fragments
                                 duration_text = f" from {duration_dates}" if duration_dates and duration_dates != "NA" else ""
                                 scope_text = f"{conf_scope} " if conf_scope and conf_scope != "NA" else "Institutional "
                                 narr = f'{f_name} attended a {scope_text}{f_cat} on "{title_text}"{duration_text}, organized by {org_body}.'
@@ -918,7 +920,7 @@ with tab_journals:
         if name.endswith(".docx") or "officedocument.wordprocessingml.document" in f.get("mimeType", ""):
             b_data = download_drive_file_bytes(f.get("id"), creds)
             if b_data:
-                extracted = extract_announcements_from_docx(b_data)
+                extracted = extract_announcements_from_docx(b_data, name)
                 parsed_docx_entries.extend(extracted)
 
     if parsed_docx_entries:
@@ -1015,12 +1017,17 @@ with tab_explorer:
         
         display_df = selected_df.copy()
         
-        # Drop the timestamp column (assumed to be index 0 for the affected sheets)
+        # Drop the timestamp column
         if sheet_choice in ["🏆 Faculty_Achievements", "👥 Student_Activities", "🏛️ Committees_Cells_Clubs"]:
-            display_df = display_df.drop(display_df.columns[0], axis=1)
-            
-        # Re-prefix with standard columns based on the resulting format
-        # Inject SL No
+            if len(display_df.columns) > 0 and 'Timestamp' in str(display_df.columns[0]):
+                 display_df = display_df.drop(display_df.columns[0], axis=1)
+            elif len(display_df.columns) > 0 and ':' in str(display_df.iloc[0,0]) and '-' in str(display_df.iloc[0,0]):
+                 display_df = display_df.drop(display_df.columns[0], axis=1)
+        elif sheet_choice == "🔬 Research_Database":
+             if len(display_df.columns) > 0 and 'Timestamp' in str(display_df.columns[0]):
+                 display_df = display_df.drop(display_df.columns[0], axis=1)
+
+        # Inject standard SL No header at index 0
         display_df.insert(0, "SL No", range(1, 1 + len(display_df)))
 
         if search_query:
