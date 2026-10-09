@@ -84,7 +84,7 @@ FACULTY_DIRECTORY = {
     "elisheba@stmaryscollege.in": {"name": "Ms. P. Elisheba", "secret_key": "elisheba_pass"},
     "debanjalee@stmaryscollege.in": {"name": "Dr. Debanjalee Bose", "secret_key": "debanjalee_pass"},
     "kirtibdnr@stmaryscollege.in": {"name": "Dr. Kirti", "secret_key": "kirti_pass"},
-    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikha_pass"},
+    "shikhasharma@stmaryscollege.in": {"name": "Dr. Shikha Sharma", "secret_key": "shikhasharma_pass"},
     "himani@stmaryscollege.in": {"name": "Dr. Himani", "secret_key": "himani_pass"},
     "roy@stmaryscollege.in": {"name": "Mr. MSS Roy", "secret_key": "roy_pass"},
     "phebi@stmaryscollege.in": {"name": "Ms. Phebi", "secret_key": "phebi_pass"},
@@ -235,10 +235,16 @@ def fetch_drive_folder_items(folder_id, creds):
     except Exception:
         return []
 
-def download_drive_file_bytes(file_id, creds):
+def download_drive_file_bytes(file_id, creds, mime_type=""):
     try:
         drive_service = build('drive', 'v3', credentials=creds)
-        request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
+        
+        # Enable on-the-fly conversion for native Google Docs
+        if mime_type == 'application/vnd.google-apps.document':
+            request = drive_service.files().export_media(fileId=file_id, mimeType='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        else:
+            request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
+            
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
         done = False
@@ -318,30 +324,15 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
     entries = []
     try:
         doc = Document(io.BytesIO(file_bytes))
-        current_dept = "All Units / Campus Wide"
         
+        # 1. Base Department Identification directly from the File Name
+        base_dept = "All Units / Campus Wide"
         for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
             if d.lower() in file_name.lower():
-                current_dept = d
+                base_dept = d
                 break
                 
-        current_category = "UGC CARE / INDEXED JOURNAL"
-
-        for p in doc.paragraphs:
-            txt = p.text.strip()
-            if not txt:
-                continue
-
-            dept_match = re.search(r'\[(.*?)\]|Department of\s+([A-Za-z &]+)', txt, re.IGNORECASE)
-            if dept_match:
-                detected = dept_match.group(1) or dept_match.group(2)
-                for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
-                    if d.lower() in detected.lower():
-                        current_dept = d
-                        break
-
-            if any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "upcoming conferences"]):
-                current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt[:40].strip().upper()
+        current_category = "CALL FOR PAPERS / JOURNAL"
 
         def get_cell_content(cell):
             raw_t = cell.text.strip()
@@ -358,6 +349,7 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
             clean_t = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', raw_t).strip(' \t\n\r|•-:')
             return clean_t, list(set(urls))
 
+        # 2. Extract structured data from tables
         for table in doc.tables:
             if not table.rows or len(table.rows) < 2:
                 continue
@@ -420,10 +412,10 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
                 reg_links = [u if u.startswith("http") else f"https://{u}" for u in row_urls if any(k in u.lower() for k in ["guide", "author", "submit", "submission", "register", "form", "apply", "ticket", "forms.gle", "inauthors", "publish"])]
                 gen_links = [u if u.startswith("http") else f"https://{u}" for u in row_urls if (u if u.startswith("http") else f"https://{u}") not in reg_links]
 
-                dept = current_dept
+                entry_dept = base_dept
                 for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
                     if d.lower() in (journal_title + " " + " ".join(extra_notes)).lower():
-                        dept = d
+                        entry_dept = d
                         break
 
                 entries.append({
@@ -433,24 +425,40 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
                     "apc": apc_val,
                     "deadline": deadline_val,
                     "notes": extra_notes,
-                    "dept": dept,
+                    "dept": entry_dept,
                     "category": current_category,
                     "reg_links": list(set(reg_links)),
                     "gen_links": list(set(gen_links))
                 })
 
+        # 3. Extract text from general paragraphs
         for p in doc.paragraphs:
             txt = p.text.strip()
-            if not txt or len(txt) < 80:
+            
+            # Identify category headers (like "UGC CARE" or "SCOPUS")
+            if any(k in txt.lower() for k in ["ugc care", "scopus", "web of science", "abdc", "call for papers", "upcoming conferences"]):
+                if len(txt) < 80: # It's likely a section header
+                    current_category = txt.split(":")[0].strip().upper() if ":" in txt else txt[:50].strip().upper()
+
+            if not txt or len(txt) < 40:
                 continue
-            if any(k in txt.lower() for k in ["updated on", "compiled by", "ugc care listed", "scopus", "disclaimer", "formatting brief", "table of contents", "st. mary"]):
+                
+            # Exclude known boilerplate (Removed 'scopus' & 'ugc' from blocklist so real data isn't skipped)
+            if any(k in txt.lower() for k in ["updated on", "compiled by", "disclaimer", "table of contents", "formatting brief"]):
                 continue
 
             urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', txt)
             cleaned_p = re.sub(r'https?://[^\s<>"]+|www\.[^\s<>"]+', '', txt).strip()
             
-            if cleaned_p and len(cleaned_p) >= 60:
+            if cleaned_p and len(cleaned_p) >= 40:
                 p_title = cleaned_p[:70] + "..." if len(cleaned_p) > 70 else cleaned_p
+                
+                entry_dept = base_dept
+                for d in DEPARTMENTS + COMMITTEES_CELLS_CLUBS:
+                    if d.lower() in txt.lower():
+                        entry_dept = d
+                        break
+
                 entries.append({
                     "title": p_title,
                     "frequency": "",
@@ -458,7 +466,7 @@ def extract_announcements_from_docx(file_bytes, file_name=""):
                     "apc": "",
                     "deadline": "",
                     "notes": [cleaned_p],
-                    "dept": current_dept,
+                    "dept": entry_dept,
                     "category": current_category,
                     "reg_links": [u if u.startswith("http") else f"https://{u}" for u in urls if any(k in u.lower() for k in ["register", "submit", "guide"])],
                     "gen_links": [u if u.startswith("http") else f"https://{u}" for u in urls if not any(k in u.lower() for k in ["register", "submit", "guide"])]
@@ -917,8 +925,10 @@ with tab_journals:
     parsed_docx_entries = []
     for f in research_files:
         name = f.get("name", "")
-        if name.endswith(".docx") or "officedocument.wordprocessingml.document" in f.get("mimeType", ""):
-            b_data = download_drive_file_bytes(f.get("id"), creds)
+        mime = f.get("mimeType", "")
+        
+        if name.endswith(".docx") or "officedocument.wordprocessingml.document" in mime or mime == 'application/vnd.google-apps.document':
+            b_data = download_drive_file_bytes(f.get("id"), creds, mime)
             if b_data:
                 extracted = extract_announcements_from_docx(b_data, name)
                 parsed_docx_entries.extend(extracted)
