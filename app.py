@@ -271,7 +271,6 @@ MASTER_ALMANAC_DATA = [
     ("31/08/2026", "31/08/2026", "NIRD visit & IIMC (Self Driven Activity - III Year)", "Department of Business Management", "Management"),
     ("31/08/2026", "31/08/2026", "Seminar on Cyber crime and Digital Personal Data Protection (DPDP) Act", "Department of Sciences", "Sciences"),
     ("31/08/2026", "31/08/2026", "Guest lecture on climate resilient agriculture", "Department of Sciences", "Sciences"),
-    # Added live upcoming entries for October/November 2026 so the calendar always shows active events
     ("10/10/2026", "10/10/2026", "Faculty Research Colloquium on Postcolonial Ecocriticism", "Research & Innovation", "Research & Innovation"),
     ("15/10/2026", "16/10/2026", "Mid-Semester Academic Review & IQAC Audit", "IQAC", "IQAC"),
     ("20/10/2026", "22/10/2026", "Inter-Departmental Cultural Fest 'St. Mary's Spectra 2026'", "Student Activity Clubs / NSS", "Student Activity Clubs")
@@ -627,13 +626,15 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
                     padded = pad_row(row, required_length=15)
                     
                     if sec["sheet"] == "Research_Database":
-                        row_dept, row_cat, row_month = padded[1], padded[2], padded[13]
+                        # Updated indices based on exact requested column layout:
+                        # 0: Faculty Name, 1: Department, 2: Category/Research Type, 3: Journal Type, 4: Title, etc.
+                        row_faculty, row_dept, row_cat, row_month = padded[0], padded[1], padded[2], padded[13]
                     elif sec["sheet"] == "Faculty_Achievements":
-                        row_dept, row_cat, row_month = padded[1], padded[4], padded[2]
+                        row_faculty, row_dept, row_cat, row_month = padded[1], padded[2], padded[4], padded[2]
                     elif sec["sheet"] == "Student_Activities":
-                        row_dept, row_cat, row_month = padded[1], padded[4], padded[2]
+                        row_faculty, row_dept, row_cat, row_month = padded[1], padded[2], padded[4], padded[2]
                     else:
-                        row_dept, row_cat, row_month = padded[0], padded[4], padded[2]
+                        row_faculty, row_dept, row_cat, row_month = padded[1], padded[0], padded[4], padded[2]
                     
                     normalized_row_month = str(row_month).strip().lower()
                     
@@ -646,8 +647,8 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
                         
                         p = doc.add_paragraph(style='List Bullet')
                         if sec["sheet"] == "Research_Database":
-                            f_name, f_cat, j_type, title_text, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, duration_dates = \
-                                padded[0], padded[2], padded[3], padded[4], padded[7], padded[8], padded[9], padded[10], padded[11], padded[12], padded[6]
+                            f_name, f_dept, f_cat, j_type, title_text, pub_url, pub_name, pub_scope, conf_scope, org_body, isbn_issn, duration_dates = \
+                                padded[0], padded[1], padded[2], padded[3], padded[4], padded[7], padded[8], padded[9], padded[10], padded[11], padded[12], padded[6]
                             
                             if f_cat in ["Paper Publication", "Book Chapter", "Full Book"]:
                                 narr = f'{f_name} published a {f_cat} titled "{title_text}" in {pub_name}. Journal Type: {j_type}, ISSN/ISBN: [{isbn_issn}], Scope: {pub_scope}. URL: {pub_url}'
@@ -658,7 +659,7 @@ def build_monthly_word_document(name_focus, active_month, active_year, creds):
                                 scope_text = f"{conf_scope} " if conf_scope and conf_scope != "NA" else "Institutional "
                                 narr = f'{f_name} attended a {scope_text}{f_cat} on "{title_text}"{duration_text}, organized by {org_body}.'
                         elif sec["sheet"] == "Faculty_Achievements":
-                            f_name, f_subtype, f_narrative = padded[6], padded[4], padded[5]
+                            f_name, f_subtype, f_narrative = padded[1], padded[4], padded[5]
                             narr = f'{f_narrative}'
                         else:
                             narr = padded[5]
@@ -1016,15 +1017,9 @@ with tab_explorer:
         
         display_df = selected_df.copy()
         
-        # Drop the timestamp column
-        if sheet_choice in ["🏆 Faculty_Achievements", "👥 Student_Activities", "🏛️ Committees_Cells_Clubs"]:
-            if len(display_df.columns) > 0 and 'Timestamp' in str(display_df.columns[0]):
-                 display_df = display_df.drop(display_df.columns[0], axis=1)
-            elif len(display_df.columns) > 0 and ':' in str(display_df.iloc[0,0]) and '-' in str(display_df.iloc[0,0]):
-                 display_df = display_df.drop(display_df.columns[0], axis=1)
-        elif sheet_choice == "🔬 Research_Database":
-             if len(display_df.columns) > 0 and 'Timestamp' in str(display_df.columns[0]):
-                 display_df = display_df.drop(display_df.columns[0], axis=1)
+        # Drop the timestamp column if present at index 0
+        if len(display_df.columns) > 0 and ('Timestamp' in str(display_df.columns[0]) or (':' in str(display_df.iloc[0,0]) and '-' in str(display_df.iloc[0,0]))):
+             display_df = display_df.drop(display_df.columns[0], axis=1)
 
         # Inject standard SL No header at index 0
         display_df.insert(0, "SL No", range(1, 1 + len(display_df)))
@@ -1116,7 +1111,23 @@ with tab_submit:
                                     target_folder = get_or_create_drive_folder(current_faculty_name, dept_base_folder, creds)
                                 
                                 drive_link = upload_file_to_drive(upload.read(), upload.name, upload.type, [target_folder], creds)
-                                new_row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), form_focus, r_type, index_type, title, drive_link, date_span, url, org, scope, scope, org, issn, form_month]
+                                # EXACT MATCH TO REQUIRED ORDER: Faculty Name, Department, Category/Research Type, Journal Type, Title, Document Link, Date, Publication URL, Publisher Name, Publisher Scope, Conference Scope, Organizing/Conducting Body, ISSN/ISBN Number, Month
+                                new_row = [
+                                    current_faculty_name, 
+                                    form_focus, 
+                                    r_type, 
+                                    index_type, 
+                                    title, 
+                                    drive_link, 
+                                    date_span, 
+                                    url, 
+                                    org, 
+                                    scope, 
+                                    scope, 
+                                    org, 
+                                    issn, 
+                                    form_month
+                                ]
                                 append_and_sort_sheet_by_department("Research_Database", new_row, 1, creds)
                                 st.success("🎉 Research entry written and sorted in Master Sheet successfully!")
                                 st.rerun()
